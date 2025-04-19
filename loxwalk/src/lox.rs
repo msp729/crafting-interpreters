@@ -1,26 +1,35 @@
+use crate::reporting::ErrorManager;
+use crate::scanner::Scanner;
 use std::io::{BufRead, Cursor, Seek, Write};
 
 #[derive(Debug, Clone)]
-pub struct Lox {}
+pub struct Lox {
+    err: ErrorManager,
+}
+
+impl Default for Lox {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Lox {
-    pub fn file() -> Self {
-        Self {}
+    pub fn new() -> Self {
+        Self {
+            err: ErrorManager::new(),
+        }
     }
 
-    pub fn prompt() -> Self {
-        Self {}
-    }
-
-    pub fn exec<R: BufRead + Seek>(&mut self, buffered: R) {
+    pub fn exec<R: BufRead + Seek>(&mut self, buffered: R) -> u8 {
         self.run(buffered);
+        if self.err.errored { 65 } else { 0 }
     }
 
     pub fn repl<R: BufRead>(&mut self, mut buffered: R, prompt: &[u8]) {
         let mut out = std::io::stdout();
         loop {
             let mut line = String::new();
-            out.write(prompt).expect("Failed to prompt user");
+            let _ = out.write(prompt).expect("Failed to prompt user");
             out.flush().expect("Failed to prompt user");
             match buffered.read_line(&mut line) {
                 Ok(0) => return println!(),
@@ -32,11 +41,10 @@ impl Lox {
         }
     }
 
-    pub fn run<B: BufRead + Seek>(&mut self, mut source: B) {
-        let mut input = String::new();
-        source
-            .read_to_string(&mut input)
-            .expect("Problem loading source into memory");
-        println!("Run: {input:?}");
+    pub fn run<B: BufRead + Seek>(&mut self, source: B) {
+        let scanner = Scanner::new(&mut self.err, source);
+        for x in scanner {
+            println!("{x}");
+        }
     }
 }
