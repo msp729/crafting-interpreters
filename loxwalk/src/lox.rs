@@ -22,7 +22,11 @@ impl Lox {
 
     pub fn exec<R: BufRead + Seek>(&mut self, buffered: R) -> u8 {
         self.run(buffered);
-        if self.err.errored { 65 } else { 0 }
+        if self.err.errored {
+            65
+        } else {
+            0
+        }
     }
 
     pub fn repl<R: BufRead>(&mut self, mut buffered: R, prompt: &[u8]) {

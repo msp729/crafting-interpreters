@@ -138,7 +138,11 @@ impl<'a, B: BufRead + Seek> Scanner<'a, B> {
 
     #[inline]
     pub fn checkte<T>(&mut self, cond: char, then: T, r#else: T) -> T {
-        if self.check(cond) { then } else { r#else }
+        if self.check(cond) {
+            then
+        } else {
+            r#else
+        }
     }
 
     fn advance(&mut self) -> char {

@@ -1,7 +1,4 @@
-#![feature(try_trait_v2, never_type)]
-
 pub mod lox;
-pub mod parser;
 pub mod reporting;
 pub mod scanner;
 pub mod tokens;
