@@ -21,7 +21,7 @@ impl Lox {
         }
     }
 
-    pub fn exec(&mut self, buffered: &str) -> u8 {
+    pub fn exec(&mut self, buffered: &[char]) -> u8 {
         self.run(buffered);
         if self.err.errored.get() { 65 } else { 0 }
     }
@@ -40,11 +40,12 @@ impl Lox {
                 Ok(_) => (),
                 Err(_) => return eprintln!("Problem loading input into memory"),
             }
+            let line: Vec<char> = line.chars().collect();
             self.run(&line);
         }
     }
 
-    pub fn run(&mut self, source: &str) {
+    pub fn run(&mut self, source: &[char]) {
         let scanner = Scanner::new(&self.err, source);
         for x in scanner.tokens() {
             println!("{x}");

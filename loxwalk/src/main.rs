@@ -16,6 +16,7 @@ fn main() -> process::ExitCode {
         return 64.into();
     } else if let Some(f) = env::args().nth(1) {
         let file = fs::read_to_string(f.clone()).expect("Failed to open the input file");
+        let file = file.chars().collect::<Vec<char>>();
         let mut engine = lox::Lox::new();
         return engine.exec(&file).into();
     }

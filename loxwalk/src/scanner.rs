@@ -6,16 +6,16 @@ use crate::tokens::{Delim, Grammar, Keyword, Op, Payload, Side, Token};
 pub struct Scanner<'a> {
     pos: Position,
     idx: usize,
-    source: Vec<char>,
+    source: &'a [char],
     err: ErrorClient<'a>,
     tokens: Vec<Token>,
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(mgr: &'a ErrorManager, source: &str) -> Self {
+    pub fn new(mgr: &'a ErrorManager, source: &'a [char]) -> Self {
         Self {
             pos: Position::default(),
-            source: source.chars().collect(),
+            source,
             idx: 0,
             err: mgr.client(),
             tokens: Vec::new(),
@@ -219,9 +219,9 @@ mod tests {
         };
 
         (payload from $src:literal, $($wanted:expr),+ $(,)?) => {
-            let src = $src;
+            let src: Vec<char> = $src.chars().collect();
             let mgr = ErrorManager::new();
-            let sc = Scanner::new(&mgr, src);
+            let sc = Scanner::new(&mgr, &src);
             let tokens = sc.tokens();
             let expected = vec![$($wanted),+];
             verify!(payload tokens against expected);
@@ -229,9 +229,9 @@ mod tests {
         };
 
         (tokens from $src:literal, $($loc:tt $load:expr),+ $(,)?) => {
-            let src = $src;
+            let src: Vec<char> = $src.chars().collect();
             let mgr = ErrorManager::new();
-            let sc = Scanner::new(&mgr, src);
+            let sc = Scanner::new(&mgr, &src);
             let tokens = sc.tokens();
             let expected = vec![
                 $(tok(pos!$loc, $load)),+ // the piece de resistance, pos!$loc
