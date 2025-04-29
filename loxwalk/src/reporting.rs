@@ -30,6 +30,7 @@ impl Default for ErrorManager {
 pub struct ErrorClient<'a>(&'a Cell<bool>);
 
 impl ErrorManager {
+    #[must_use]
     pub fn new() -> ErrorManager {
         Self {
             errored: Cell::new(false),
@@ -42,13 +43,13 @@ impl ErrorManager {
 }
 
 impl ErrorClient<'_> {
-    pub fn report(&self, pos: Position, loc: String, msg: String) {
+    pub fn report(&self, pos: Position, loc: &str, msg: &str) {
         eprintln!("[{pos}] Error{loc}: {msg}");
         self.0.set(true);
     }
 
-    pub fn error(&self, pos: Position, msg: String) {
-        self.report(pos, String::new(), msg);
+    pub fn error(&self, pos: Position, msg: &str) {
+        self.report(pos, "", msg);
     }
 }
 

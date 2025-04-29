@@ -14,13 +14,14 @@ impl Default for Lox {
 }
 
 impl Lox {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             err: ErrorManager::new(),
         }
     }
 
-    pub fn exec(&mut self, buffered: String) -> u8 {
+    pub fn exec(&mut self, buffered: &str) -> u8 {
         self.run(buffered);
         if self.err.errored.get() {
             65
@@ -29,6 +30,9 @@ impl Lox {
         }
     }
 
+    /// # Panics
+    /// on I/O failures
+    /// probably shouldn't do that, but i'll get back to it
     pub fn repl<R: BufRead>(&mut self, mut buffered: R, prompt: &[u8]) {
         let mut out = std::io::stdout();
         loop {
@@ -40,11 +44,11 @@ impl Lox {
                 Ok(_) => (),
                 Err(_) => return eprintln!("Problem loading input into memory"),
             }
-            self.run(line)
+            self.run(&line);
         }
     }
 
-    pub fn run(&mut self, source: String) {
+    pub fn run(&mut self, source: &str) {
         let scanner = Scanner::new(&self.err, source);
         for x in scanner.tokens() {
             println!("{x}");

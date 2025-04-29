@@ -12,7 +12,7 @@ pub struct Scanner<'a> {
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(mgr: &'a ErrorManager, source: String) -> Self {
+    pub fn new(mgr: &'a ErrorManager, source: &str) -> Self {
         Self {
             pos: Position::default(),
             source: source.chars().collect(),
@@ -29,6 +29,7 @@ impl<'a> Scanner<'a> {
         c
     }
 
+    #[must_use]
     pub fn tokens(mut self) -> Vec<Token> {
         while !self.is_at_end() {
             self.add_token();
@@ -41,8 +42,8 @@ impl<'a> Scanner<'a> {
         self.idx >= self.source.len()
     }
 
-    fn report(&self, msg: String) {
-        self.err.error(self.pos, msg)
+    fn report(&self, msg: &str) {
+        self.err.error(self.pos, msg);
     }
 
     fn add_token(&mut self) {
@@ -69,7 +70,7 @@ impl<'a> Scanner<'a> {
                         self.advance();
                     }
                 } else {
-                    self.placeg(Grammar::Op(Op::Slash))
+                    self.placeg(Grammar::Op(Op::Slash));
                 }
             }
             ' ' | '\r' | '\t' | '\n' => (),
@@ -77,7 +78,7 @@ impl<'a> Scanner<'a> {
             '0'..='9' => self.number(),
             _ if c.is_alphabetic() => self.identifier(),
             '_' => self.identifier(),
-            _ => self.report("Unexpected character".into()),
+            _ => self.report("Unexpected character"),
         }
     }
 
@@ -88,11 +89,11 @@ impl<'a> Scanner<'a> {
             l += 1;
         }
         if self.is_at_end() {
-            self.report("Unterminated string".into())
+            self.report("Unterminated string");
         } else {
             let val: String = self.source[self.idx - l..self.idx].iter().collect();
             self.advance();
-            self.place(Payload::String(val))
+            self.place(Payload::String(val));
         }
     }
 
@@ -158,9 +159,9 @@ impl<'a> Scanner<'a> {
     fn checkte(&mut self, c: char, t: Grammar, e: Grammar) {
         let b = self.check(c);
         if b {
-            self.placeg(t)
+            self.placeg(t);
         } else {
-            self.placeg(e)
+            self.placeg(e);
         }
     }
 
@@ -168,10 +169,10 @@ impl<'a> Scanner<'a> {
         self.tokens.push(Token {
             pos: self.pos,
             load,
-        })
+        });
     }
 
     fn placeg(&mut self, g: Grammar) {
-        self.place(Payload::Grammar(g))
+        self.place(Payload::Grammar(g));
     }
 }
