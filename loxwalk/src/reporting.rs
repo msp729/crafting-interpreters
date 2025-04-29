@@ -53,7 +53,7 @@ impl ErrorClient<'_> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
     pub lin: u64,
     pub col: u64,
@@ -65,7 +65,7 @@ impl Position {
         self.len += 1;
         if c == '\n' {
             self.lin += 1;
-            self.col = 1;
+            self.col = 0;
         } else {
             self.col += 1;
         }

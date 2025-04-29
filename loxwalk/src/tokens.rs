@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter, Write};
 
 use crate::reporting::Position;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub pos: Position,
     pub load: Payload,
@@ -73,6 +73,13 @@ pub enum Keyword {
     True,
     Var,
     While,
+}
+
+impl Grammar {
+    pub const LP: Self = Self::Delim(Side::Left, Delim::Paren);
+    pub const RP: Self = Self::Delim(Side::Right, Delim::Paren);
+    pub const LB: Self = Self::Delim(Side::Left, Delim::Brace);
+    pub const RB: Self = Self::Delim(Side::Right, Delim::Brace);
 }
 
 impl Display for Token {

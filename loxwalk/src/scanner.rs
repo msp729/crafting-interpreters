@@ -34,6 +34,7 @@ impl<'a> Scanner<'a> {
         while !self.is_at_end() {
             self.add_token();
         }
+        self.pos.col += 1;
         self.placeg(Grammar::EOF);
         self.tokens
     }
@@ -175,4 +176,137 @@ impl<'a> Scanner<'a> {
     fn placeg(&mut self, g: Grammar) {
         self.place(Payload::Grammar(g));
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pos(lin: u64, col: u64, len: u64) -> Position {
+        Position { lin, col, len }
+    }
+
+    fn tok(pos: Position, load: Payload) -> Token {
+        Token { pos, load }
+    }
+
+    macro_rules! pos {
+        // position parsing, pretty-style
+        ($l:literal:$c:literal) => {
+            pos($l, $c, 1)
+        };
+        ($l:literal:$b:literal-$e:literal) => {
+            pos($l, $e, 1 + $e - $b)
+        };
+    }
+
+    // i might be great at macros
+    // enables elegant verification
+    // from source to tokens
+    macro_rules! verify {
+        (test $name:ident payload $src:literal, $($wanted:expr),+ $(,)?) => {
+            #[test]
+            fn $name() {
+                verify![payload from $src, $($wanted),+];
+            }
+        };
+
+        (test $name:ident tokens $src:literal, $($loc:tt $load:expr),+ $(,)?) => {
+            #[test]
+            fn $name() {
+                verify![tokens from $src, $($loc $load),+];
+            }
+        };
+
+        (payload from $src:literal, $($wanted:expr),+ $(,)?) => {
+            let src = $src;
+            let mgr = ErrorManager::new();
+            let sc = Scanner::new(&mgr, src);
+            let tokens = sc.tokens();
+            let expected = vec![$($wanted),+];
+            verify!(payload tokens against expected);
+            assert!(!mgr.errored.get());
+        };
+
+        (tokens from $src:literal, $($loc:tt $load:expr),+ $(,)?) => {
+            let src = $src;
+            let mgr = ErrorManager::new();
+            let sc = Scanner::new(&mgr, src);
+            let tokens = sc.tokens();
+            let expected = vec![
+                $(tok(pos!$loc, $load)),+ // the piece de resistance, pos!$loc
+            ];
+            verify!(full tokens against expected);
+            assert!(!mgr.errored.get());
+        };
+
+        (payload $got:ident against $wanted:ident) => {
+            println!("{:#?} against {:#?}", $got, $wanted);
+            assert_eq!($got.len(), $wanted.len());
+            for (g, w) in $got.into_iter().zip($wanted) {
+                assert_eq!(g.load, w);
+            }
+        };
+        (full $got:ident against $wanted:ident) => {
+            println!("{:#?} against {:#?}", $got, $wanted);
+            assert_eq!($got.len(), $wanted.len());
+            for (g, w) in $got.into_iter().zip($wanted) {
+                assert_eq!(g, w);
+            }
+        };
+    }
+
+    fn g(x: Grammar) -> Payload {
+        Payload::Grammar(x)
+    }
+
+    verify![test paren
+        payload "()",
+
+        g(Grammar::LP),
+        g(Grammar::RP),
+        g(Grammar::EOF),
+    ];
+
+    verify![test braces
+        payload "{}",
+
+        g(Grammar::LB),
+        g(Grammar::RB),
+        g(Grammar::EOF),
+    ];
+
+    verify![
+        test newline
+        tokens "()\n()",
+
+        [1:1] g(Grammar::LP),
+        [1:2] g(Grammar::RP),
+        [2:1] g(Grammar::LP),
+        [2:2] g(Grammar::RP),
+        [2:3] g(Grammar::EOF),
+    ];
+
+    verify![test ident
+        payload "name",
+
+        Payload::Ident("name".into()),
+        g(Grammar::EOF),
+    ];
+
+    verify![test kword
+        payload "or",
+
+        g(Grammar::Keyword(Keyword::Or)),
+        g(Grammar::EOF),
+    ];
+
+    verify![test number
+        payload "1.3.4",
+
+        Payload::Number(1.3),
+        g(Grammar::Dot),
+        Payload::Number(4.0),
+        g(Grammar::EOF),
+    ];
 }

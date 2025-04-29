@@ -23,11 +23,7 @@ impl Lox {
 
     pub fn exec(&mut self, buffered: &str) -> u8 {
         self.run(buffered);
-        if self.err.errored.get() {
-            65
-        } else {
-            0
-        }
+        if self.err.errored.get() { 65 } else { 0 }
     }
 
     /// # Panics
