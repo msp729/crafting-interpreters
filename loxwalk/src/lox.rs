@@ -1,6 +1,6 @@
 use crate::reporting::ErrorManager;
 use crate::scanner::Scanner;
-use std::io::{BufRead, Cursor, Seek, Write};
+use std::io::{BufRead, Write};
 
 #[derive(Debug, Clone)]
 pub struct Lox {
@@ -20,9 +20,9 @@ impl Lox {
         }
     }
 
-    pub fn exec<R: BufRead + Seek>(&mut self, buffered: R) -> u8 {
+    pub fn exec(&mut self, buffered: String) -> u8 {
         self.run(buffered);
-        if self.err.errored {
+        if self.err.errored.get() {
             65
         } else {
             0
@@ -40,14 +40,13 @@ impl Lox {
                 Ok(_) => (),
                 Err(_) => return eprintln!("Problem loading input into memory"),
             }
-            let cursor = Cursor::new(line);
-            self.run(cursor)
+            self.run(line)
         }
     }
 
-    pub fn run<B: BufRead + Seek>(&mut self, source: B) {
-        let scanner = Scanner::new(&mut self.err, source);
-        for x in scanner {
+    pub fn run(&mut self, source: String) {
+        let scanner = Scanner::new(&self.err, source);
+        for x in scanner.tokens() {
             println!("{x}");
         }
     }

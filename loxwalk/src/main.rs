@@ -1,9 +1,13 @@
+#![warn(clippy::pedantic)]
 pub mod lox;
 pub mod reporting;
 pub mod scanner;
 pub mod tokens;
 
-use std::{env, fs, io, process};
+use std::env;
+use std::fs;
+use std::io;
+use std::process;
 
 fn main() -> process::ExitCode {
     let argc = env::args().len();
@@ -11,10 +15,9 @@ fn main() -> process::ExitCode {
         println!("Usage: jlox [script]");
         return 64.into();
     } else if let Some(f) = env::args().nth(1) {
-        let file = fs::File::open(f.clone()).expect("Failed to open the input file");
-        let buffered = io::BufReader::new(file);
+        let file = fs::read_to_string(f.clone()).expect("Failed to open the input file");
         let mut engine = lox::Lox::new();
-        return engine.exec(buffered).into();
+        return engine.exec(file).into();
     } else {
         let stdin = io::stdin();
         let buffered = io::BufReader::new(stdin);

@@ -1,7 +1,15 @@
 use std::fmt::{Display, Formatter, Write};
 
+use crate::reporting::Position;
+
+#[derive(Debug, Clone)]
+pub struct Token {
+    pub pos: Position,
+    pub load: Payload,
+}
+
 #[derive(Debug, Clone, PartialEq)]
-pub enum Token {
+pub enum Payload {
     Grammar(Grammar),
     Ident(String),
     String(String),
@@ -69,11 +77,17 @@ pub enum Keyword {
 
 impl Display for Token {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "[{}] {}", self.pos, self.load)
+    }
+}
+
+impl Display for Payload {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Token::Grammar(op) => op.fmt(f),
-            Token::Ident(iden) => write!(f, "IDENT {iden}"),
-            Token::String(val) => write!(f, "STRING {val:?}"),
-            Token::Number(val) => write!(f, "NUMBER {val}"),
+            Payload::Grammar(g) => g.fmt(f),
+            Payload::Ident(id) => write!(f, "IDENT {id}"),
+            Payload::String(s) => write!(f, "STRING {s}"),
+            Payload::Number(x) => write!(f, "NUMBER {x}"),
         }
     }
 }
@@ -88,7 +102,7 @@ impl Display for Grammar {
                     (Side::Right, Delim::Paren) => ')',
                     (Side::Right, Delim::Brace) => '}',
                 };
-                write!(f, "DELIM {}", c)
+                write!(f, "DELIM {c}")
             }
             Grammar::Comma => write!(f, "COMMA"),
             Grammar::Dot => write!(f, "DOT"),

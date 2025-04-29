@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 #[macro_export]
 macro_rules! failure {
     ($msg:expr) => {
@@ -15,7 +17,7 @@ macro_rules! fill {
 
 #[derive(Debug, Clone)]
 pub struct ErrorManager {
-    pub errored: bool,
+    pub errored: Cell<bool>,
 }
 
 impl Default for ErrorManager {
@@ -24,19 +26,68 @@ impl Default for ErrorManager {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ErrorClient<'a>(&'a Cell<bool>);
+
 impl ErrorManager {
     pub fn new() -> ErrorManager {
-        Self { errored: false }
+        Self {
+            errored: Cell::new(false),
+        }
     }
 
-    #[inline]
-    pub fn report(&mut self, line: u64, col: u64, loc: String, msg: String) {
-        eprintln!("[{line}:{col}] Error{loc}: {msg}");
-        self.errored = true;
+    pub fn client(&'_ self) -> ErrorClient<'_> {
+        ErrorClient(&self.errored)
+    }
+}
+
+impl ErrorClient<'_> {
+    pub fn report(&self, pos: Position, loc: String, msg: String) {
+        eprintln!("[{pos}] Error{loc}: {msg}");
+        self.0.set(true);
     }
 
-    #[inline]
-    pub fn error(&mut self, line: u64, col: u64, msg: String) {
-        self.report(line, col, String::new(), msg);
+    pub fn error(&self, pos: Position, msg: String) {
+        self.report(pos, String::new(), msg);
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Position {
+    pub lin: u64,
+    pub col: u64,
+    pub len: u64,
+}
+
+impl Position {
+    pub fn step(&mut self, c: char) {
+        self.len += 1;
+        if c == '\n' {
+            self.lin += 1;
+            self.col = 1;
+        } else {
+            self.col += 1;
+        }
+    }
+}
+
+impl Default for Position {
+    fn default() -> Self {
+        Self {
+            lin: 1,
+            col: 0,
+            len: 0,
+        }
+    }
+}
+
+impl std::fmt::Display for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let sc = self.col - self.len + 1;
+        if sc < self.col {
+            write!(f, "{}:{}-{}", self.lin, sc, self.col)
+        } else {
+            write!(f, "{}:{}", self.lin, self.col)
+        }
     }
 }
