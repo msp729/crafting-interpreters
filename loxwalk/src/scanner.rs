@@ -34,7 +34,8 @@ impl<'a> Scanner<'a> {
         while !self.is_at_end() {
             self.add_token();
         }
-        self.pos.col += 1;
+        self.pos.step(' ');
+        self.pos.sync();
         self.placeg(Grammar::EOF);
         self.tokens
     }
@@ -48,8 +49,8 @@ impl<'a> Scanner<'a> {
     }
 
     fn add_token(&mut self) {
-        self.pos.len = 0;
         let c = self.advance();
+        self.pos.sync();
         match c {
             '(' => self.placeg(Grammar::Delim(Side::Left, Delim::Paren)),
             ')' => self.placeg(Grammar::Delim(Side::Right, Delim::Paren)),
@@ -180,10 +181,18 @@ impl<'a> Scanner<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::reporting::Loc;
+
     use super::*;
 
-    fn pos(lin: u64, col: u64, len: u64) -> Position {
-        Position { lin, col, len }
+    fn pos(line: u64, col: u64, len: u64) -> Position {
+        Position {
+            start: Loc { line, col },
+            end: Loc {
+                line,
+                col: col + len - 1,
+            },
+        }
     }
 
     fn tok(pos: Position, load: Payload) -> Token {

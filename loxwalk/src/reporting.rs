@@ -54,41 +54,52 @@ impl ErrorClient<'_> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Position {
-    pub lin: u64,
+pub struct Loc {
+    pub line: u64,
     pub col: u64,
-    pub len: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Position {
+    pub start: Loc,
+    pub end: Loc,
 }
 
 impl Position {
     pub fn step(&mut self, c: char) {
-        self.len += 1;
         if c == '\n' {
-            self.lin += 1;
-            self.col = 0;
+            self.end.line += 1;
+            self.end.col = 0;
         } else {
-            self.col += 1;
+            self.end.col += 1;
         }
+    }
+
+    pub fn sync(&mut self) {
+        self.start = self.end;
     }
 }
 
-impl Default for Position {
+impl Default for Loc {
     fn default() -> Self {
-        Self {
-            lin: 1,
-            col: 0,
-            len: 0,
-        }
+        Loc { line: 1, col: 0 }
+    }
+}
+
+impl std::fmt::Display for Loc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.line, self.col)
     }
 }
 
 impl std::fmt::Display for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let sc = self.col - self.len + 1;
-        if sc < self.col {
-            write!(f, "{}:{}-{}", self.lin, sc, self.col)
+        if self.start == self.end {
+            write!(f, "{}", self.start)
+        } else if self.start.line == self.end.line {
+            write!(f, "{}-{}", self.start, self.end.col)
         } else {
-            write!(f, "{}:{}", self.lin, self.col)
+            write!(f, "{}-{}", self.start, self.end)
         }
     }
 }

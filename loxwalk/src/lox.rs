@@ -42,7 +42,7 @@ impl Lox {
                 Err(_) => return eprintln!("Problem loading input into memory"),
             }
             let line: Vec<char> = line.chars().collect();
-            self.run(&line[..line.len() - 1]);
+            self.run(&line);
         }
     }
 
