@@ -1,0 +1,199 @@
+use crate::expr::{Bin, Expr, Un, Value};
+use crate::reporting::{ErrorClient, ErrorManager, Position};
+use crate::tokens::{Grammar, Keyword, Op, Payload, Token};
+
+#[derive(Debug, Clone)]
+pub struct Parser<'a> {
+    tokens: &'a [Token],
+    current: usize,
+    err: ErrorClient<'a>,
+}
+
+impl<'a> Parser<'a> {
+    pub fn new(mgr: &'a ErrorManager, tokens: &'a [Token]) -> Self {
+        Self {
+            tokens,
+            current: 0,
+            err: mgr.client(),
+        }
+    }
+
+    pub fn parse(&mut self) -> Option<Expr> {
+        self.expression()
+    }
+
+    fn expression(&mut self) -> Option<Expr> {
+        self.equality()
+    }
+
+    fn equality(&mut self) -> Option<Expr> {
+        let mut running = self.comparison()?;
+        while let Some(op) = self.equality_op() {
+            if let Some(rhs) = self.comparison() {
+                running = Expr::Binary(Box::new(running), op, Box::new(rhs));
+            } else {
+                break;
+            }
+        }
+        Some(running)
+    }
+
+    fn equality_op(&mut self) -> Option<(Position, Bin)> {
+        let Token { pos, load } = &self.tokens[self.current];
+        self.current += 1;
+        match load {
+            Payload::Grammar(Grammar::Op(Op::Equal)) => Some((*pos, Bin::Eql)),
+            Payload::Grammar(Grammar::Op(Op::NotEqual)) => Some((*pos, Bin::Neq)),
+            _ => {
+                self.current -= 1;
+                None
+            }
+        }
+    }
+
+    fn comparison(&mut self) -> Option<Expr> {
+        let mut running = self.term()?;
+        while let Some(op) = self.comparison_op() {
+            if let Some(rhs) = self.term() {
+                running = Expr::Binary(Box::new(running), op, Box::new(rhs));
+            } else {
+                break;
+            }
+        }
+        Some(running)
+    }
+
+    fn comparison_op(&mut self) -> Option<(Position, Bin)> {
+        let Token { pos, load } = &self.tokens[self.current];
+        self.current += 1;
+        match load {
+            Payload::Grammar(Grammar::Op(Op::LE)) => Some((*pos, Bin::Le)),
+            Payload::Grammar(Grammar::Op(Op::LT)) => Some((*pos, Bin::Lt)),
+            Payload::Grammar(Grammar::Op(Op::GE)) => Some((*pos, Bin::Ge)),
+            Payload::Grammar(Grammar::Op(Op::GT)) => Some((*pos, Bin::Gt)),
+            _ => {
+                self.current -= 1;
+                None
+            }
+        }
+    }
+
+    fn term(&mut self) -> Option<Expr> {
+        let mut running = self.factor()?;
+        while let Some(op) = self.term_op() {
+            if let Some(rhs) = self.factor() {
+                running = Expr::Binary(Box::new(running), op, Box::new(rhs));
+            } else {
+                break;
+            }
+        }
+        Some(running)
+    }
+
+    fn term_op(&mut self) -> Option<(Position, Bin)> {
+        let Token { pos, load } = &self.tokens[self.current];
+        self.current += 1;
+        match load {
+            Payload::Grammar(Grammar::Op(Op::Plus)) => Some((*pos, Bin::Add)),
+            Payload::Grammar(Grammar::Op(Op::Minus)) => Some((*pos, Bin::Sub)),
+            _ => {
+                self.current -= 1;
+                None
+            }
+        }
+    }
+
+    fn factor(&mut self) -> Option<Expr> {
+        let mut running = self.unary()?;
+        while let Some(op) = self.factor_op() {
+            if let Some(rhs) = self.unary() {
+                running = Expr::Binary(Box::new(running), op, Box::new(rhs));
+            } else {
+                break;
+            }
+        }
+        Some(running)
+    }
+
+    fn factor_op(&mut self) -> Option<(Position, Bin)> {
+        let Token { pos, load } = &self.tokens[self.current];
+        self.current += 1;
+        match load {
+            Payload::Grammar(Grammar::Op(Op::Star)) => Some((*pos, Bin::Mul)),
+            Payload::Grammar(Grammar::Op(Op::Slash)) => Some((*pos, Bin::Div)),
+            _ => {
+                self.current -= 1;
+                None
+            }
+        }
+    }
+
+    fn unary(&mut self) -> Option<Expr> {
+        let Token { pos, load } = &self.tokens[self.current];
+        self.current += 1;
+        match load {
+            Payload::Grammar(Grammar::Op(Op::Bang)) => {
+                Some(Expr::Unary((*pos, Un::Not), Box::new(self.unary()?)))
+            }
+            Payload::Grammar(Grammar::Op(Op::Minus)) => {
+                Some(Expr::Unary((*pos, Un::Neg), Box::new(self.unary()?)))
+            }
+            _ => {
+                self.current -= 1;
+                self.primary()
+            }
+        }
+    }
+
+    fn primary(&mut self) -> Option<Expr> {
+        let Token { pos, load } = &self.tokens[self.current];
+        self.current += 1;
+        match load {
+            Payload::Grammar(Grammar::Keyword(Keyword::True)) => {
+                Some(Expr::Literal(*pos, Value::Bool(true)))
+            }
+            Payload::Grammar(Grammar::Keyword(Keyword::False)) => {
+                Some(Expr::Literal(*pos, Value::Bool(false)))
+            }
+            Payload::Grammar(Grammar::Keyword(Keyword::Nil)) => {
+                Some(Expr::Literal(*pos, Value::Nil))
+            }
+            Payload::String(s) => Some(Expr::Literal(*pos, Value::Str(s.clone()))),
+            Payload::Number(x) => Some(Expr::Literal(*pos, Value::Num(*x))),
+            Payload::Grammar(Grammar::LP) => {
+                let interior = self.expression();
+                if let Err(pos) = self.closep() {
+                    self.err.error(pos, "Unclosed parenthetical");
+                }
+                interior
+            }
+            Payload::Grammar(g) => {
+                self.err.error(*pos, &format!("Unexpected {g}"));
+                None
+            }
+            Payload::Ident(n) => Some(Expr::Ident(*pos, n.clone())),
+        }
+    }
+
+    fn closep(&mut self) -> Result<Position, Position> {
+        let Token { pos, load } = &self.tokens[self.current];
+        if *load == Payload::Grammar(Grammar::RP) {
+            self.current += 1;
+            Ok(*pos)
+        } else {
+            Err(*pos)
+        }
+    }
+}
+
+/*
+expression     → equality ;
+equality       → comparison ( ( "!=" | "==" ) comparison )* ;
+comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+term           → factor ( ( "-" | "+" ) factor )* ;
+factor         → unary ( ( "/" | "*" ) unary )* ;
+unary          → ( "!" | "-" ) unary
+               | primary ;
+primary        → NUMBER | STRING | "true" | "false" | "nil"
+               | "(" expression ")" ;
+ */

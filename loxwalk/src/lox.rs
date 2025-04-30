@@ -1,5 +1,5 @@
-use crate::reporting::ErrorManager;
 use crate::scanner::Scanner;
+use crate::{parser::Parser, reporting::ErrorManager};
 use std::io::{BufRead, Write};
 
 #[derive(Debug, Clone)]
@@ -47,8 +47,13 @@ impl Lox {
 
     pub fn run(&mut self, source: &[char]) {
         let scanner = Scanner::new(&self.err, source);
-        for x in scanner.tokens() {
+        let v = scanner.tokens();
+        for x in &v {
             println!("{x}");
+        }
+        let mut parser = Parser::new(&self.err, &v);
+        if let Some(e) = parser.parse() {
+            println!("{e}");
         }
     }
 }

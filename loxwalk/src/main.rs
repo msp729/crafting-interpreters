@@ -1,5 +1,7 @@
 #![warn(clippy::pedantic)]
+pub mod expr;
 pub mod lox;
+pub mod parser;
 pub mod reporting;
 pub mod scanner;
 pub mod tokens;
