@@ -1,3 +1,4 @@
+use crate::interpreter::Interpreter;
 use crate::scanner::Scanner;
 use crate::{parser::Parser, reporting::ErrorManager};
 use std::io::{BufRead, Write};
@@ -41,19 +42,25 @@ impl Lox {
                 Err(_) => return eprintln!("Problem loading input into memory"),
             }
             let line: Vec<char> = line.chars().collect();
-            self.run(&line);
+            self.run(&line[..line.len() - 1]);
         }
     }
 
-    pub fn run(&mut self, source: &[char]) {
+    pub fn run(&mut self, source: &[char]) -> Option<()> {
         let scanner = Scanner::new(&self.err, source);
         let v = scanner.tokens();
         for x in &v {
             println!("{x}");
         }
+
         let mut parser = Parser::new(&self.err, &v);
-        if let Some(e) = parser.parse() {
-            println!("{e}");
-        }
+        let e = parser.parse()?;
+        println!("{e}");
+
+        let mut interpreter = Interpreter::new(&self.err);
+        let v = interpreter.evaluate(e)?;
+        println!("{v}");
+
+        Some(())
     }
 }

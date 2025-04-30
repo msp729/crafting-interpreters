@@ -161,11 +161,11 @@ impl<'a> Parser<'a> {
             Payload::String(s) => Some(Expr::Literal(*pos, Value::Str(s.clone()))),
             Payload::Number(x) => Some(Expr::Literal(*pos, Value::Num(*x))),
             Payload::Grammar(Grammar::LP) => {
-                let interior = self.expression();
+                let interior = self.expression()?;
                 if let Err(pos) = self.closep() {
                     self.err.error(pos, "Unclosed parenthetical");
                 }
-                interior
+                Some(Expr::Grouping(Box::new(interior)))
             }
             Payload::Grammar(g) => {
                 self.err.error(*pos, &format!("Unexpected {g}"));

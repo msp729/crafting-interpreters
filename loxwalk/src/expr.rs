@@ -9,7 +9,7 @@ pub enum Expr {
     Ident(Position, String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Num(f64),
     Str(String),
@@ -35,6 +35,18 @@ pub enum Bin {
 pub enum Un {
     Not,
     Neg,
+}
+
+impl Value {
+    #[must_use]
+    pub fn truth(self) -> bool {
+        match self {
+            Value::Num(x) => x == 0.0,
+            Value::Str(s) => s.is_empty(),
+            Value::Bool(b) => b,
+            Value::Nil => false,
+        }
+    }
 }
 
 impl std::fmt::Display for Expr {
