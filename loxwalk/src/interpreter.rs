@@ -25,6 +25,8 @@ impl<'a> Interpreter<'a> {
                     (crate::expr::Bin::Mul, Value::Num(x), Value::Num(y)) => Value::Num(x * y),
                     (crate::expr::Bin::Div, Value::Num(x), Value::Num(y)) => Value::Num(x / y),
                     (crate::expr::Bin::Add, Value::Str(x), Value::Str(y)) => Value::Str(x + &y),
+                    (crate::expr::Bin::Add, Value::Str(x), y) => Value::Str(format!("{x}{y}")),
+                    (crate::expr::Bin::Add, x, Value::Str(y)) => Value::Str(format!("{x}{y}")),
                     (op, l, r) => {
                         self.err.error(pos, &format!("Operator {op} cannot be applied to values {l} and {r} due to incompatible types."));
                         return None;
