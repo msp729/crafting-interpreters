@@ -1,6 +1,5 @@
-var v1 = 1;
-print v1;
-v2 = 3;
-v1 = "b";
-print v1;
-print v2;
+var variablename = 1;
+print variablename;
+print vn2;
+print true;
+print "a";

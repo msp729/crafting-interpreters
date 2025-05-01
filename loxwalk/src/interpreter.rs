@@ -21,25 +21,12 @@ impl<'a> Interpreter<'a> {
                     Some(x) => println!("{x}"),
                 }
             }
-
             Stmt::Decl(name, None) => _ = self.env.insert(name, Value::Nil),
             Stmt::Decl(name, Some(e)) => {
                 if let Some(v) = self.evaluate(e) {
                     self.env.insert(name, v);
                 } else {
                     self.env.insert(name, Value::Nil);
-                }
-            }
-
-            Stmt::Asn(pos, name, e) => {
-                if self.env.contains_key(&name) {
-                    let v = self.evaluate(e);
-                    self.env.insert(name, v.unwrap_or(Value::Nil));
-                } else {
-                    self.err.error(
-                        pos,
-                        &format!("Variable '{name}' assigned to before declaration"),
-                    );
                 }
             }
         }
@@ -82,7 +69,7 @@ impl<'a> Interpreter<'a> {
                 crate::expr::Un::Not => Some(Value::Bool(!self.evaluate(*ex)?.truth())),
             },
 
-            Expr::Grouping(_, ex) => self.evaluate(*ex),
+            Expr::Grouping(ex) => self.evaluate(*ex),
 
             Expr::Literal(_, value) => Some(value),
 

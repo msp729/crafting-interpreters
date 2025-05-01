@@ -80,15 +80,6 @@ impl Position {
     }
 }
 
-impl From<std::ops::Range<Position>> for Position {
-    fn from(value: std::ops::Range<Position>) -> Self {
-        Self {
-            start: value.start.start,
-            end: value.end.end,
-        }
-    }
-}
-
 impl Default for Loc {
     fn default() -> Self {
         Loc { line: 1, col: 0 }
