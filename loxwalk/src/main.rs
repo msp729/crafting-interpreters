@@ -5,6 +5,7 @@ pub mod lox;
 pub mod parser;
 pub mod reporting;
 pub mod scanner;
+pub mod stmt;
 pub mod tokens;
 
 use std::env;

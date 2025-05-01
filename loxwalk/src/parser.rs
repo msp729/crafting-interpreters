@@ -1,5 +1,6 @@
 use crate::expr::{Bin, Expr, Un, Value};
 use crate::reporting::{ErrorClient, ErrorManager, Position};
+use crate::stmt::Stmt;
 use crate::tokens::{Grammar, Keyword, Op, Payload, Token};
 
 #[derive(Debug, Clone)]
@@ -18,14 +19,37 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Option<Expr> {
-        self.expression()
+    pub fn parse(&mut self) -> Vec<Stmt> {
+        let mut ret = Vec::new();
+        while !self.is_at_end() {
+            let Some(s) = self.declaration() else {
+                break;
+            };
+            ret.push(s);
+        }
+        ret
+    }
+
+    fn is_at_end(&self) -> bool {
+        self.current >= self.tokens.len()
+            || self.tokens[self.current].load == Payload::Grammar(Grammar::EOF)
+    }
+
+    pub fn declaration(&mut self) -> Option<Stmt> {
+        if self.check(Grammar::Keyword(Keyword::Var)).is_ok() {
+            self.decl_stmt()
+        } else {
+            self.statement()
+        }
     }
 
     fn expression(&mut self) -> Option<Expr> {
         self.equality()
     }
+}
 
+// expression guts
+impl Parser<'_> {
     fn equality(&mut self) -> Option<Expr> {
         let mut running = self.comparison()?;
         while let Some(op) = self.equality_op() {
@@ -183,6 +207,72 @@ impl<'a> Parser<'a> {
         } else {
             Err(*pos)
         }
+    }
+}
+
+// statement guts
+impl Parser<'_> {
+    fn statement(&mut self) -> Option<Stmt> {
+        let Token { pos: _, load } = &self.tokens[self.current];
+        self.current += 1;
+        match load {
+            Payload::Grammar(Grammar::Keyword(Keyword::Print)) => self.print_stmt(),
+            _ => {
+                self.current -= 1;
+                self.expr_stmt()
+            }
+        }
+    }
+
+    fn check(&mut self, g: Grammar) -> Result<Position, Position> {
+        let Token { pos, load } = &self.tokens[self.current];
+        if load == &Payload::Grammar(g) {
+            self.current += 1;
+            Ok(*pos)
+        } else {
+            Err(*pos)
+        }
+    }
+
+    fn semicolon(&mut self) -> Option<()> {
+        if let Err(pos) = self.check(Grammar::Semicolon) {
+            self.err.error(pos, "Expected semicolon");
+            None
+        } else {
+            Some(())
+        }
+    }
+
+    fn expr_stmt(&mut self) -> Option<Stmt> {
+        let e = self.expression()?;
+        self.semicolon()?;
+        Some(Stmt::Expr(e))
+    }
+
+    fn print_stmt(&mut self) -> Option<Stmt> {
+        let e = self.expression()?;
+        self.semicolon()?;
+        Some(Stmt::Print(e))
+    }
+
+    fn decl_name(&mut self) -> Option<String> {
+        let Token { pos, load } = &self.tokens[self.current];
+        let Payload::Ident(name) = load else {
+            self.err.error(*pos, "Expected variable name");
+            return None;
+        };
+        self.current += 1;
+        Some(name.clone())
+    }
+
+    fn decl_stmt(&mut self) -> Option<Stmt> {
+        let name = self.decl_name()?;
+        let value = match self.check(Grammar::Op(Op::Assign)) {
+            Ok(_) => Some(self.expression()?),
+            Err(_) => None,
+        };
+        self.semicolon();
+        Some(Stmt::Decl(name, value))
     }
 }
 

@@ -1,0 +1,5 @@
+var variablename = 1;
+print variablename;
+print vn2;
+print true;
+print "a";

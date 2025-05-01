@@ -1,13 +1,37 @@
 use crate::{
     expr::{Expr, Value},
     reporting::{ErrorClient, ErrorManager},
+    stmt::Stmt,
 };
+use std::collections::HashMap;
 
 pub struct Interpreter<'a> {
     err: ErrorClient<'a>,
+    env: HashMap<String, Value>,
 }
 
 impl<'a> Interpreter<'a> {
+    pub fn interpret(&mut self, st: Stmt) {
+        match st {
+            Stmt::Expr(e) => _ = self.evaluate(e),
+            Stmt::Print(e) => {
+                () = match self.evaluate(e) {
+                    None => (),
+                    Some(Value::Str(s)) => println!("{s}"),
+                    Some(x) => println!("{x}"),
+                }
+            }
+            Stmt::Decl(name, None) => _ = self.env.insert(name, Value::Nil),
+            Stmt::Decl(name, Some(e)) => {
+                if let Some(v) = self.evaluate(e) {
+                    self.env.insert(name, v);
+                } else {
+                    self.env.insert(name, Value::Nil);
+                }
+            }
+        }
+    }
+
     pub fn evaluate(&mut self, ex: Expr) -> Option<Value> {
         match ex {
             Expr::Binary(e1, (pos, op), e2) => {
@@ -49,15 +73,22 @@ impl<'a> Interpreter<'a> {
 
             Expr::Literal(_, value) => Some(value),
 
-            Expr::Ident(pos, _ident) => {
-                // TODO
-                self.err.error(pos, "Cannot evaluate identifiers");
-                None
+            Expr::Ident(pos, ident) => {
+                if let Some(v) = self.env.get(&ident) {
+                    Some(v.clone())
+                } else {
+                    self.err
+                        .error(pos, &format!("Variable `{ident}` is undefined"));
+                    None
+                }
             }
         }
     }
 
     pub fn new(mgr: &'a ErrorManager) -> Self {
-        Self { err: mgr.client() }
+        Self {
+            err: mgr.client(),
+            env: HashMap::new(),
+        }
     }
 }

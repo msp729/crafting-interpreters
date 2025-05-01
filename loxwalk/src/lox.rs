@@ -49,17 +49,18 @@ impl Lox {
     pub fn run(&mut self, source: &[char]) -> Option<()> {
         let scanner = Scanner::new(&self.err, source);
         let v = scanner.tokens();
-        for x in &v {
-            println!("{x}");
-        }
+        //for x in &v {
+        //println!("{x}");
+        //}
 
         let mut parser = Parser::new(&self.err, &v);
-        let e = parser.parse()?;
-        println!("{e}");
+        let stmts = parser.parse();
 
-        let mut interpreter = Interpreter::new(&self.err);
-        let v = interpreter.evaluate(e)?;
-        println!("{v}");
+        let mut interp = Interpreter::new(&self.err);
+        for stmt in stmts {
+            //println!("{stmt}");
+            interp.interpret(stmt);
+        }
 
         Some(())
     }
