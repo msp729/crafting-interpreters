@@ -21,12 +21,12 @@ fn main() -> process::ExitCode {
     } else if let Some(f) = env::args().nth(1) {
         let file = fs::read_to_string(f.clone()).expect("Failed to open the input file");
         let file = file.chars().collect::<Vec<char>>();
-        let mut engine = lox::Lox::new();
+        let engine = lox::Lox::new();
         return engine.exec(&file).into();
     }
     let stdin = io::stdin();
     let buffered = io::BufReader::new(stdin);
-    let mut engine = lox::Lox::new();
+    let engine = lox::Lox::new();
     engine.repl(buffered, b"> ");
     process::ExitCode::SUCCESS
 }

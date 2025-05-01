@@ -22,16 +22,18 @@ impl Lox {
         }
     }
 
-    pub fn exec(&mut self, buffered: &[char]) -> u8 {
-        self.run(buffered);
+    pub fn exec(&self, buffered: &[char]) -> u8 {
+        let mut interp = Interpreter::new(&self.err);
+        self.run(buffered, &mut interp);
         if self.err.errored.get() { 65 } else { 0 }
     }
 
     /// # Panics
     /// on I/O failures
     /// probably shouldn't do that, but i'll get back to it
-    pub fn repl<R: BufRead>(&mut self, mut buffered: R, prompt: &[u8]) {
+    pub fn repl<R: BufRead>(&self, mut buffered: R, prompt: &[u8]) {
         let mut out = std::io::stdout();
+        let mut interp = Interpreter::new(&self.err);
         loop {
             let mut line = String::new();
             let _ = out.write(prompt).expect("Failed to prompt user");
@@ -42,11 +44,11 @@ impl Lox {
                 Err(_) => return eprintln!("Problem loading input into memory"),
             }
             let line: Vec<char> = line.chars().collect();
-            self.run(&line);
+            self.run(&line, &mut interp);
         }
     }
 
-    pub fn run(&mut self, source: &[char]) -> Option<()> {
+    pub fn run(&self, source: &[char], interp: &mut Interpreter) -> Option<()> {
         let scanner = Scanner::new(&self.err, source);
         let v = scanner.tokens();
         //for x in &v {
@@ -56,7 +58,6 @@ impl Lox {
         let mut parser = Parser::new(&self.err, &v);
         let stmts = parser.parse();
 
-        let mut interp = Interpreter::new(&self.err);
         for stmt in stmts {
             //println!("{stmt}");
             interp.interpret(stmt);
