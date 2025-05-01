@@ -69,7 +69,7 @@ impl<'a> Interpreter<'a> {
                 crate::expr::Un::Not => Some(Value::Bool(!self.evaluate(*ex)?.truth())),
             },
 
-            Expr::Grouping(ex) => self.evaluate(*ex),
+            Expr::Grouping(_, ex) => self.evaluate(*ex),
 
             Expr::Literal(_, value) => Some(value),
 
@@ -79,6 +79,18 @@ impl<'a> Interpreter<'a> {
                 } else {
                     self.err
                         .error(pos, &format!("Variable `{ident}` is undefined"));
+                    None
+                }
+            }
+
+            Expr::Assign((pos, name), expr) => {
+                if self.env.contains_key(&name) {
+                    let v = self.evaluate(*expr).unwrap_or(Value::Nil);
+                    self.env.insert(name, v.clone());
+                    Some(v)
+                } else {
+                    self.err
+                        .error(pos, "Variable assigned to without declaration");
                     None
                 }
             }

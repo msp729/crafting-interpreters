@@ -4,9 +4,10 @@ use crate::reporting::Position;
 pub enum Expr {
     Binary(Box<Expr>, (Position, Bin), Box<Expr>),
     Unary((Position, Un), Box<Expr>),
-    Grouping(Box<Expr>),
+    Grouping(Position, Box<Expr>),
     Literal(Position, Value),
     Ident(Position, String),
+    Assign((Position, String), Box<Expr>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -39,12 +40,23 @@ pub enum Un {
 
 impl Value {
     #[must_use]
-    pub fn truth(self) -> bool {
+    pub fn truth(&self) -> bool {
         match self {
-            Value::Num(x) => x == 0.0,
+            Value::Num(x) => *x == 0.0,
             Value::Str(s) => s.is_empty(),
-            Value::Bool(b) => b,
+            Value::Bool(b) => *b,
             Value::Nil => false,
+        }
+    }
+}
+
+impl Expr {
+    #[must_use]
+    pub fn pos(&self) -> Position {
+        match self {
+            Expr::Binary(l, _, r) => (l.pos()..r.pos()).into(),
+            Expr::Unary((p, _), e) | Expr::Assign((p, _), e) => (*p..e.pos()).into(),
+            Expr::Grouping(p, _) | Expr::Literal(p, _) | Expr::Ident(p, _) => *p,
         }
     }
 }
@@ -54,9 +66,10 @@ impl std::fmt::Display for Expr {
         match self {
             Expr::Binary(expr, (_, op), expr1) => write!(f, "({op} {expr} {expr1})"),
             Expr::Unary((_, op), expr) => write!(f, "({op} {expr})"),
-            Expr::Grouping(expr) => write!(f, "[group {expr}]"),
+            Expr::Grouping(_, expr) => write!(f, "[group {expr}]"),
             Expr::Literal(_, value) => write!(f, "[literal {value}]"),
             Expr::Ident(_, name) => write!(f, "[ident {name}]"),
+            Expr::Assign((_, name), expr) => write!(f, "[assign {name} = {expr}]"),
         }
     }
 }

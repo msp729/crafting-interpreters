@@ -50,12 +50,27 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> Option<Expr> {
-        self.equality()
+        self.assignment()
     }
 }
 
 // expression guts
 impl Parser<'_> {
+    fn assignment(&mut self) -> Option<Expr> {
+        let lhs = self.equality()?;
+        let Ok(_) = self.check(Grammar::Op(Op::Assign)) else {
+            return Some(lhs);
+        };
+        let rhs = self.assignment()?;
+        match lhs {
+            Expr::Ident(pos, name) => Some(Expr::Assign((pos, name), Box::new(rhs))),
+            lhs => {
+                self.err.error(lhs.pos(), "Cannot assign to expression");
+                None
+            }
+        }
+    }
+
     fn equality(&mut self) -> Option<Expr> {
         let mut running = self.comparison()?;
         while let Some(op) = self.equality_op() {
@@ -192,10 +207,13 @@ impl Parser<'_> {
             Payload::Number(x) => Some(Expr::Literal(*pos, Value::Num(*x))),
             Payload::Grammar(Grammar::LP) => {
                 let interior = self.expression()?;
-                if let Err(pos) = self.closep() {
-                    self.err.error(pos, "Unclosed parenthetical");
+                match self.closep() {
+                    Ok(end) => Some(Expr::Grouping((*pos..end).into(), Box::new(interior))),
+                    Err(pos) => {
+                        self.err.error(pos, "Unclosed parenthetical");
+                        None
+                    }
                 }
-                Some(Expr::Grouping(Box::new(interior)))
             }
             Payload::Grammar(g) => {
                 self.err.error(*pos, &format!("Unexpected {g}"));
