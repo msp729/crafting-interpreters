@@ -37,6 +37,7 @@ impl<'a> Parser<'a> {
 
     pub fn statement(&mut self) -> Option<Stmt> {
         let Token { pos: _, load } = &self.tokens[self.current];
+
         self.current += 1;
         match load {
             Payload::Grammar(Grammar::Keyword(Keyword::Print)) => self.print_stmt(),
@@ -44,7 +45,7 @@ impl<'a> Parser<'a> {
 
             _ => {
                 self.current -= 1;
-                self.expr_stmt()
+                self.assignment()
             }
         }
     }
@@ -192,10 +193,13 @@ impl Parser<'_> {
             Payload::Number(x) => Some(Expr::Literal(*pos, Value::Num(*x))),
             Payload::Grammar(Grammar::LP) => {
                 let interior = self.expression()?;
-                if let Err(pos) = self.closep() {
-                    self.err.error(pos, "Unclosed parenthetical");
+                match self.closep() {
+                    Err(pos) => {
+                        self.err.error(pos, "Unclosed parenthetical");
+                        None
+                    }
+                    Ok(end) => Some(Expr::Grouping((*pos..end).into(), Box::new(interior))),
                 }
-                Some(Expr::Grouping(Box::new(interior)))
             }
             Payload::Grammar(g) => {
                 self.err.error(*pos, &format!("Unexpected {g}"));
@@ -237,12 +241,6 @@ impl Parser<'_> {
         }
     }
 
-    fn expr_stmt(&mut self) -> Option<Stmt> {
-        let e = self.expression()?;
-        self.semicolon()?;
-        Some(Stmt::Expr(e))
-    }
-
     fn print_stmt(&mut self) -> Option<Stmt> {
         let e = self.expression()?;
         self.semicolon()?;
@@ -267,6 +265,24 @@ impl Parser<'_> {
         };
         self.semicolon();
         Some(Stmt::Decl(name, value))
+    }
+
+    fn assignment(&mut self) -> Option<Stmt> {
+        let lhs = self.expression()?;
+        let rv = if self.check(Grammar::Op(Op::Assign)).is_ok() {
+            let rhs = self.expression()?;
+            match lhs {
+                Expr::Ident(pos, name) => Some(Stmt::Asn(pos, name, rhs)),
+                lhs => {
+                    self.err.error(lhs.pos(), "Cannot assign to non-variable");
+                    None
+                }
+            }
+        } else {
+            Some(Stmt::Expr(lhs))
+        };
+        self.semicolon()?;
+        rv
     }
 }
 

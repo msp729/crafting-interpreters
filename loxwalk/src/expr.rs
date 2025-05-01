@@ -4,7 +4,7 @@ use crate::reporting::Position;
 pub enum Expr {
     Binary(Box<Expr>, (Position, Bin), Box<Expr>),
     Unary((Position, Un), Box<Expr>),
-    Grouping(Box<Expr>),
+    Grouping(Position, Box<Expr>),
     Literal(Position, Value),
     Ident(Position, String),
 }
@@ -49,12 +49,23 @@ impl Value {
     }
 }
 
+impl Expr {
+    #[must_use]
+    pub fn pos(&self) -> Position {
+        match self {
+            Expr::Binary(left, _, right) => (left.pos()..right.pos()).into(),
+            Expr::Unary((pos, _), expr) => (*pos..expr.pos()).into(),
+            Expr::Grouping(pos, _) | Expr::Literal(pos, _) | Expr::Ident(pos, _) => *pos,
+        }
+    }
+}
+
 impl std::fmt::Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::Binary(expr, (_, op), expr1) => write!(f, "({op} {expr} {expr1})"),
             Expr::Unary((_, op), expr) => write!(f, "({op} {expr})"),
-            Expr::Grouping(expr) => write!(f, "[group {expr}]"),
+            Expr::Grouping(_, expr) => write!(f, "[group {expr}]"),
             Expr::Literal(_, value) => write!(f, "[literal {value}]"),
             Expr::Ident(_, name) => write!(f, "[ident {name}]"),
         }
