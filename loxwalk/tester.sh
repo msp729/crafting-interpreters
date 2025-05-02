@@ -9,10 +9,10 @@ do
     if cmp -s tests/$fn.txt tests/expected/$fn.txt
     then
         echo $i PASSED
+        rm tests/$fn.txt
     else
         echo $i FAILED
         echo
         diff tests/$fn.txt tests/expected/$fn.txt
-        rm tests/$fn.txt
     fi
 done

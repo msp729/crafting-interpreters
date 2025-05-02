@@ -33,6 +33,13 @@ impl<'a> Interpreter<'a> {
                 }
                 self.env.pop();
             }
+            Stmt::If(cond, then, r#else) => {
+                if self.evaluate(cond).unwrap_or(Value::Nil).truth() {
+                    self.interpret(*then);
+                } else if let Some(e) = r#else {
+                    self.interpret(*e);
+                }
+            }
         }
     }
 

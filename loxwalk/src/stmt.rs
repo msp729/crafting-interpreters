@@ -6,6 +6,7 @@ pub enum Stmt {
     Expr(Expr),
     Print(Expr),
     Block(Vec<Stmt>),
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>),
 }
 
 impl std::fmt::Display for Stmt {
@@ -22,6 +23,8 @@ impl std::fmt::Display for Stmt {
                 }
                 f.write_str("}")
             }
+            Stmt::If(i, t, Some(e)) => write!(f, "IF {i} THEN {t} ELSE {e}"),
+            Stmt::If(i, t, None) => write!(f, "IF {i} THEN {t}"),
         }
     }
 }

@@ -1,0 +1,4 @@
+var a = 0;
+{if a print 1; else print 2;}
+a = 1;
+{if a print 1; else print 2;}

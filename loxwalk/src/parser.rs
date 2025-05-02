@@ -54,6 +54,7 @@ impl<'a> Parser<'a> {
         match load {
             Payload::Grammar(Grammar::Keyword(Keyword::Print)) => self.print_stmt(),
             Payload::Grammar(Grammar::LB) => Some(Stmt::Block(self.block()?)),
+            Payload::Grammar(Grammar::Keyword(Keyword::If)) => self.if_stmt(),
 
             _ => {
                 self.current -= 1;
@@ -316,6 +317,17 @@ impl Parser<'_> {
         };
         self.semicolon();
         Some(Stmt::Decl(name, value))
+    }
+
+    fn if_stmt(&mut self) -> Option<Stmt> {
+        let cond = self.expression()?;
+        let result = self.statement()?;
+        if self.check(Grammar::Keyword(Keyword::Else)).is_ok() {
+            let fallback = self.statement()?;
+            Some(Stmt::If(cond, Box::new(result), Some(Box::new(fallback))))
+        } else {
+            Some(Stmt::If(cond, Box::new(result), None))
+        }
     }
 }
 
