@@ -1,13 +1,13 @@
 use crate::{
     expr::{Expr, Value},
-    reporting::{ErrorClient, ErrorManager},
+    reporting::{ErrorClient, ErrorManager, Position},
     stmt::Stmt,
 };
 use std::collections::HashMap;
 
 pub struct Interpreter<'a> {
     err: ErrorClient<'a>,
-    env: HashMap<String, Value>,
+    env: Environment,
 }
 
 impl<'a> Interpreter<'a> {
@@ -21,13 +21,10 @@ impl<'a> Interpreter<'a> {
                     Some(x) => println!("{x}"),
                 }
             }
-            Stmt::Decl(name, None) => _ = self.env.insert(name, Value::Nil),
+            Stmt::Decl(name, None) => self.env.declare(name, Value::Nil),
             Stmt::Decl(name, Some(e)) => {
-                if let Some(v) = self.evaluate(e) {
-                    self.env.insert(name, v);
-                } else {
-                    self.env.insert(name, Value::Nil);
-                }
+                let v = self.evaluate(e).unwrap_or(Value::Nil);
+                self.env.declare(name, v);
             }
         }
     }
@@ -73,37 +70,17 @@ impl<'a> Interpreter<'a> {
 
             Expr::Literal(_, value) => Some(value),
 
-            Expr::Ident(pos, ident) => {
-                if let Some(v) = self.env.get(&ident) {
-                    Some(v.clone())
-                } else {
-                    self.err
-                        .error(pos, &format!("Variable `{ident}` is undefined"));
-                    None
-                }
-            }
+            Expr::Ident(pos, ident) => Some(self.value(pos, &ident)?.clone()),
 
             Expr::Push((pos, name), expr) => {
-                if self.env.contains_key(&name) {
-                    let v = self.evaluate(*expr).unwrap_or(Value::Nil);
-                    self.env.insert(name, v)
-                } else {
-                    self.err
-                        .error(pos, "Variable assigned to without declaration");
-                    None
-                }
+                let v = self.evaluate(*expr).unwrap_or(Value::Nil);
+                self.assign(pos, name, v.clone())
             }
 
             Expr::Assign((pos, name), expr) => {
-                if self.env.contains_key(&name) {
-                    let v = self.evaluate(*expr).unwrap_or(Value::Nil);
-                    self.env.insert(name, v.clone());
-                    Some(v)
-                } else {
-                    self.err
-                        .error(pos, "Variable assigned to without declaration");
-                    None
-                }
+                let v = self.evaluate(*expr).unwrap_or(Value::Nil);
+                self.assign(pos, name, v.clone())?;
+                Some(v)
             }
         }
     }
@@ -111,7 +88,86 @@ impl<'a> Interpreter<'a> {
     pub fn new(mgr: &'a ErrorManager) -> Self {
         Self {
             err: mgr.client(),
-            env: HashMap::new(),
+            env: Environment::top(),
+        }
+    }
+
+    fn assign(&mut self, pos: Position, name: String, val: Value) -> Option<Value> {
+        self.env.assign(self.err, pos, name, val)
+    }
+
+    fn value(&mut self, pos: Position, name: &str) -> Option<Value> {
+        self.env.value(self.err, pos, name)
+    }
+}
+
+struct Environment(Vec<Scope>);
+impl Environment {
+    fn top() -> Self {
+        Self(vec![Scope(HashMap::new())])
+    }
+
+    fn push(&mut self) {
+        self.0.push(Scope(HashMap::new()))
+    }
+
+    fn pop(&mut self) {
+        self.0.pop();
+    }
+
+    fn assign(
+        &mut self,
+        err: ErrorClient,
+        pos: Position,
+        mut name: String,
+        val: Value,
+    ) -> Option<Value> {
+        for i in self.idxs() {
+            let scope = &mut self.0[i];
+            name = match scope.updater(name) {
+                // a very convoluted way to do all of this without ever cloning name
+                Ok(mut updater) => return Some(updater(val)),
+                // move name back out of the function if necessary
+                Err(name) => name,
+            }
+        }
+        err.error(pos, &format!("Assigning to '{name}' before declaration"));
+        None
+    }
+
+    fn declare(&mut self, name: String, v: Value) {
+        self.local().0.insert(name, v);
+    }
+
+    fn value(&self, err: ErrorClient, pos: Position, name: &str) -> Option<Value> {
+        for i in self.idxs() {
+            let scope = &self.0[i];
+            if let Some(v) = scope.0.get(name) {
+                return Some(v.clone());
+            }
+        }
+        err.error(pos, &format!("'{name}' is undefined"));
+        None
+    }
+
+    fn local(&mut self) -> &mut Scope {
+        let i = self.0.len() - 1;
+        &mut self.0[i]
+    }
+
+    fn idxs(&self) -> impl Iterator<Item = usize> + use<> {
+        let x = self.0.len();
+        (1..=x).map(move |i| x - i)
+    }
+}
+
+struct Scope(HashMap<String, Value>);
+
+impl Scope {
+    fn updater(&mut self, name: String) -> Result<impl FnMut(Value) -> Value, String> {
+        match self.0.entry(name) {
+            std::collections::hash_map::Entry::Occupied(mut entry) => Ok(move |v| entry.insert(v)),
+            std::collections::hash_map::Entry::Vacant(entry) => Err(entry.into_key()),
         }
     }
 }
