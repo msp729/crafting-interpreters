@@ -1,0 +1,9 @@
+var a;
+(a = false) and (a = "second");
+print a; // should be false
+(a = true) and (a = "second");
+print a; // should be "second"
+(a = false) or (a = "second");
+print a; // should be "second"
+(a = true) or (a = "second");
+print a; // should be true

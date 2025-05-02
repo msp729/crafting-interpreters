@@ -79,7 +79,7 @@ impl<'a> Parser<'a> {
 // expression guts
 impl Parser<'_> {
     fn assignment(&mut self) -> Option<Expr> {
-        let lhs = self.equality()?;
+        let lhs = self.or_expr()?;
         if self.check(Grammar::Op(Op::Assign)).is_ok() {
             let rhs = self.assignment()?;
             match lhs {
@@ -101,6 +101,30 @@ impl Parser<'_> {
         } else {
             Some(lhs)
         }
+    }
+
+    fn or_expr(&mut self) -> Option<Expr> {
+        let mut running = self.and_expr()?;
+        while let Ok(pos) = self.check(Grammar::Keyword(Keyword::Or)) {
+            if let Some(rhs) = self.and_expr() {
+                running = Expr::Binary(Box::new(running), (pos, Bin::Or), Box::new(rhs));
+            } else {
+                break;
+            }
+        }
+        Some(running)
+    }
+
+    fn and_expr(&mut self) -> Option<Expr> {
+        let mut running = self.equality()?;
+        while let Ok(pos) = self.check(Grammar::Keyword(Keyword::And)) {
+            if let Some(rhs) = self.equality() {
+                running = Expr::Binary(Box::new(running), (pos, Bin::And), Box::new(rhs));
+            } else {
+                break;
+            }
+        }
+        Some(running)
     }
 
     fn equality(&mut self) -> Option<Expr> {

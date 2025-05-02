@@ -1,5 +1,5 @@
 use crate::{
-    expr::{Expr, Value},
+    expr::{Bin, Expr, Value},
     reporting::{ErrorClient, ErrorManager, Position},
     stmt::Stmt,
 };
@@ -45,6 +45,22 @@ impl<'a> Interpreter<'a> {
 
     pub fn evaluate(&mut self, ex: Expr) -> Option<Value> {
         match ex {
+            Expr::Binary(e1, (_, Bin::And), e2) => {
+                let v = self.evaluate(*e1)?;
+                if v.truth() {
+                    Some(self.evaluate(*e2)?)
+                } else {
+                    Some(v)
+                }
+            }
+            Expr::Binary(e1, (_, Bin::Or), e2) => {
+                let v = self.evaluate(*e1)?;
+                if v.truth() {
+                    Some(v)
+                } else {
+                    Some(self.evaluate(*e2)?)
+                }
+            }
             Expr::Binary(e1, (pos, op), e2) => {
                 let l = self.evaluate(*e1)?;
                 let r = self.evaluate(*e2)?;

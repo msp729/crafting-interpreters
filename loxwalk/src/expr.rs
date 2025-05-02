@@ -31,6 +31,8 @@ pub enum Bin {
     Sub,
     Mul,
     Div,
+    And,
+    Or,
 }
 
 #[derive(Clone, Debug)]
@@ -91,6 +93,8 @@ impl std::fmt::Display for Bin {
             Bin::Sub => write!(f, "-"),
             Bin::Mul => write!(f, "*"),
             Bin::Div => write!(f, "/"),
+            Bin::And => write!(f, "and"),
+            Bin::Or => write!(f, "or"),
         }
     }
 }
