@@ -55,6 +55,8 @@ impl<'a> Parser<'a> {
             Payload::Grammar(Grammar::Keyword(Keyword::Print)) => self.print_stmt(),
             Payload::Grammar(Grammar::LB) => Some(Stmt::Block(self.block()?)),
             Payload::Grammar(Grammar::Keyword(Keyword::If)) => self.if_stmt(),
+            Payload::Grammar(Grammar::Keyword(Keyword::While)) => self.while_stmt(),
+            Payload::Grammar(Grammar::Keyword(Keyword::For)) => self.for_stmt(),
 
             _ => {
                 self.current -= 1;
@@ -302,13 +304,17 @@ impl Parser<'_> {
         }
     }
 
-    fn semicolon(&mut self) -> Option<()> {
-        if let Err(pos) = self.check(Grammar::Semicolon) {
-            self.err.error(pos, "Expected semicolon");
+    fn consume(&mut self, g: Grammar, msg: &str) -> Option<()> {
+        if let Err(pos) = self.check(g) {
+            self.err.error(pos, msg);
             None
         } else {
             Some(())
         }
+    }
+
+    fn semicolon(&mut self) -> Option<()> {
+        self.consume(Grammar::Semicolon, "Expected semicolon")
     }
 
     fn expr_stmt(&mut self) -> Option<Stmt> {
@@ -352,6 +358,37 @@ impl Parser<'_> {
         } else {
             Some(Stmt::If(cond, Box::new(result), None))
         }
+    }
+
+    fn while_stmt(&mut self) -> Option<Stmt> {
+        let cond = self.expression()?;
+        let int = self.statement()?;
+        Some(Stmt::While(cond, Box::new(int)))
+    }
+
+    fn for_stmt(&mut self) -> Option<Stmt> {
+        self.consume(Grammar::LP, "For loops must have parentheses")?;
+        let init = if self.check(Grammar::Semicolon).is_ok() {
+            Stmt::NOP
+        } else if self.check(Grammar::Keyword(Keyword::Var)).is_ok() {
+            self.decl_stmt()?
+        } else {
+            self.expr_stmt()?
+        };
+        let cond = self.expression()?;
+        self.semicolon()?;
+        let update = if let Ok(pos) = self.check(Grammar::RP) {
+            Expr::Literal(pos, Value::Nil)
+        } else {
+            let e = self.expression()?;
+            self.check(Grammar::RP).ok()?;
+            e
+        };
+        let body = self.statement()?;
+        Some(Stmt::Block(vec![
+            init,
+            Stmt::While(cond, Box::new(Stmt::Block(vec![body, Stmt::Expr(update)]))),
+        ]))
     }
 }
 

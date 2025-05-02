@@ -21,11 +21,13 @@ impl<'a> Interpreter<'a> {
                     Some(x) => println!("{x}"),
                 }
             }
+
             Stmt::Decl(name, None) => self.env.declare(name, Value::Nil),
             Stmt::Decl(name, Some(e)) => {
                 let v = self.evaluate(e).unwrap_or(Value::Nil);
                 self.env.declare(name, v);
             }
+
             Stmt::Block(sts) => {
                 self.env.push();
                 for st in sts {
@@ -33,6 +35,7 @@ impl<'a> Interpreter<'a> {
                 }
                 self.env.pop();
             }
+
             Stmt::If(cond, then, r#else) => {
                 if self.evaluate(cond).unwrap_or(Value::Nil).truth() {
                     self.interpret(*then);
@@ -40,6 +43,14 @@ impl<'a> Interpreter<'a> {
                     self.interpret(*e);
                 }
             }
+
+            Stmt::While(cond, interior) => {
+                while self.evaluate(cond.clone()).unwrap_or(Value::Nil).truth() {
+                    self.interpret(*interior.clone());
+                }
+            }
+
+            Stmt::NOP => (),
         }
     }
 

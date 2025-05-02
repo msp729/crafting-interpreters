@@ -6,7 +6,9 @@ pub enum Stmt {
     Expr(Expr),
     Print(Expr),
     Block(Vec<Stmt>),
+    While(Expr, Box<Stmt>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
+    NOP,
 }
 
 impl std::fmt::Display for Stmt {
@@ -19,12 +21,14 @@ impl std::fmt::Display for Stmt {
             Stmt::Block(v) => {
                 f.write_str("{\n")?;
                 for x in v {
-                    write!(f, "{x}")?;
+                    writeln!(f, "{x}")?;
                 }
                 f.write_str("}")
             }
+            Stmt::While(e, s) => write!(f, "WHILE {e} {s}"),
             Stmt::If(i, t, Some(e)) => write!(f, "IF {i} THEN {t} ELSE {e}"),
             Stmt::If(i, t, None) => write!(f, "IF {i} THEN {t}"),
+            Stmt::NOP => f.write_str("NOP"),
         }
     }
 }
