@@ -1,0 +1,10 @@
+var v1 = 1;
+{
+"this assigns to the outer variable";
+v1 = 2;
+"this creates an inner variable";
+var v1 = 3;
+print v1;
+}
+"now it's back to 2";
+print v1;

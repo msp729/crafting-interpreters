@@ -26,6 +26,13 @@ impl<'a> Interpreter<'a> {
                 let v = self.evaluate(e).unwrap_or(Value::Nil);
                 self.env.declare(name, v);
             }
+            Stmt::Block(sts) => {
+                self.env.push();
+                for st in sts {
+                    self.interpret(st);
+                }
+                self.env.pop();
+            }
         }
     }
 
@@ -108,7 +115,7 @@ impl Environment {
     }
 
     fn push(&mut self) {
-        self.0.push(Scope(HashMap::new()))
+        self.0.push(Scope(HashMap::new()));
     }
 
     fn pop(&mut self) {

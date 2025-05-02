@@ -22,7 +22,7 @@ impl<'a> Parser<'a> {
     pub fn parse(&mut self) -> Vec<Stmt> {
         let mut ret = Vec::new();
         while !self.is_at_end() {
-            let Some(s) = self.statement() else {
+            let Some(s) = self.declaration() else {
                 break;
             };
             ret.push(s);
@@ -35,12 +35,25 @@ impl<'a> Parser<'a> {
             || self.tokens[self.current].load == Payload::Grammar(Grammar::EOF)
     }
 
-    pub fn statement(&mut self) -> Option<Stmt> {
+    pub fn declaration(&mut self) -> Option<Stmt> {
+        let Token { pos: _, load } = &self.tokens[self.current];
+        self.current += 1;
+        match load {
+            Payload::Grammar(Grammar::Keyword(Keyword::Var)) => self.decl_stmt(),
+
+            _ => {
+                self.current -= 1;
+                self.statement()
+            }
+        }
+    }
+
+    fn statement(&mut self) -> Option<Stmt> {
         let Token { pos: _, load } = &self.tokens[self.current];
         self.current += 1;
         match load {
             Payload::Grammar(Grammar::Keyword(Keyword::Print)) => self.print_stmt(),
-            Payload::Grammar(Grammar::Keyword(Keyword::Var)) => self.decl_stmt(),
+            Payload::Grammar(Grammar::LB) => Some(Stmt::Block(self.block()?)),
 
             _ => {
                 self.current -= 1;
@@ -51,6 +64,14 @@ impl<'a> Parser<'a> {
 
     fn expression(&mut self) -> Option<Expr> {
         self.assignment()
+    }
+
+    fn block(&mut self) -> Option<Vec<Stmt>> {
+        let mut v = Vec::new();
+        while !self.is_at_end() && self.check(Grammar::RB).is_err() {
+            v.push(self.declaration()?);
+        }
+        Some(v)
     }
 }
 
