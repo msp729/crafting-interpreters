@@ -1,9 +1,12 @@
-use crate::reporting::Position;
+use std::{cell::RefCell, rc::Rc};
+
+use crate::{interpreter::Interpreter, reporting::Position};
 
 #[derive(Clone, Debug)]
 pub enum Expr {
     Binary(Box<Expr>, (Position, Bin), Box<Expr>),
     Unary((Position, Un), Box<Expr>),
+    Call(Box<Expr>, Position, Vec<Expr>),
     Grouping(Position, Box<Expr>),
     Literal(Position, Value),
     Ident(Position, String),
@@ -16,7 +19,38 @@ pub enum Value {
     Num(f64),
     Str(String),
     Bool(bool),
+    Function(LoxFunc),
     Nil,
+}
+
+#[derive(Clone)]
+pub struct LoxFunc(pub Rc<RefCell<dyn LFT>>);
+
+impl PartialEq for LoxFunc {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl LFT for LoxFunc {
+    fn arity(&self) -> usize {
+        (*self.0).borrow().arity()
+    }
+
+    fn evaluate(&mut self, rt: &mut Interpreter, args: Vec<Value>) -> Value {
+        (*self.0).borrow_mut().evaluate(rt, args)
+    }
+}
+
+impl std::fmt::Debug for LoxFunc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<function>")
+    }
+}
+
+pub trait LFT {
+    fn arity(&self) -> usize;
+    fn evaluate(&mut self, rt: &mut Interpreter, args: Vec<Value>) -> Value;
 }
 
 #[derive(Clone, Debug)]
@@ -49,6 +83,7 @@ impl Value {
             Value::Str(s) => s.is_empty(),
             Value::Bool(b) => *b,
             Value::Nil => false,
+            Value::Function(_) => true,
         }
     }
 }
@@ -62,6 +97,7 @@ impl Expr {
                 (*p..e.pos()).into()
             }
             Expr::Grouping(p, _) | Expr::Literal(p, _) | Expr::Ident(p, _) => *p,
+            Expr::Call(expr, pos, _) => (expr.pos()..*pos).into(),
         }
     }
 }
@@ -76,6 +112,17 @@ impl std::fmt::Display for Expr {
             Expr::Ident(_, name) => write!(f, "[ident {name}]"),
             Expr::Assign((_, name), expr) => write!(f, "[assign {name} = {expr}]"),
             Expr::Push((_, name), expr) => write!(f, "[push {name} : {expr}]"),
+            Expr::Call(fun, _, args) => {
+                if args.is_empty() {
+                    write!(f, "{fun}()")
+                } else {
+                    write!(f, "{fun}({}", args[0])?;
+                    for arg in &args[1..] {
+                        write!(f, ", {arg}")?;
+                    }
+                    Ok(())
+                }
+            }
         }
     }
 }
@@ -115,6 +162,7 @@ impl std::fmt::Display for Value {
             Value::Str(s) => write!(f, "{s:#?}"),
             Value::Bool(b) => write!(f, "{b}"),
             Value::Nil => write!(f, "nil"),
+            Value::Function(_) => f.write_str("<function>"),
         }
     }
 }

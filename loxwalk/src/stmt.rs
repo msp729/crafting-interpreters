@@ -9,6 +9,8 @@ pub enum Stmt {
     While(Expr, Box<Stmt>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     NOP,
+    Break,
+    Continue,
 }
 
 impl std::fmt::Display for Stmt {
@@ -29,6 +31,8 @@ impl std::fmt::Display for Stmt {
             Stmt::If(i, t, Some(e)) => write!(f, "IF {i} THEN {t} ELSE {e}"),
             Stmt::If(i, t, None) => write!(f, "IF {i} THEN {t}"),
             Stmt::NOP => f.write_str("NOP"),
+            Stmt::Break => f.write_str("BREAK"),
+            Stmt::Continue => f.write_str("CONTINUE"),
         }
     }
 }

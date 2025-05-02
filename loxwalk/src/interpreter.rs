@@ -1,5 +1,5 @@
 use crate::{
-    expr::{Bin, Expr, Value},
+    expr::{Bin, Expr, LFT, Value},
     reporting::{ErrorClient, ErrorManager, Position},
     stmt::Stmt,
 };
@@ -11,46 +11,66 @@ pub struct Interpreter<'a> {
 }
 
 impl<'a> Interpreter<'a> {
-    pub fn interpret(&mut self, st: Stmt) {
+    /// # Errors
+    /// doesn't
+    pub fn interpret(&mut self, st: Stmt) -> Result<(), FlowControl> {
         match st {
-            Stmt::Expr(e) => _ = self.evaluate(e),
+            Stmt::Expr(e) => {
+                self.evaluate(e);
+                Ok(())
+            }
             Stmt::Print(e) => {
-                () = match self.evaluate(e) {
+                match self.evaluate(e) {
                     None => (),
                     Some(Value::Str(s)) => println!("{s}"),
                     Some(x) => println!("{x}"),
                 }
+                Ok(())
             }
 
-            Stmt::Decl(name, None) => self.env.declare(name, Value::Nil),
+            Stmt::Decl(name, None) => {
+                self.env.declare(name, Value::Nil);
+                Ok(())
+            }
             Stmt::Decl(name, Some(e)) => {
                 let v = self.evaluate(e).unwrap_or(Value::Nil);
                 self.env.declare(name, v);
+                Ok(())
             }
 
             Stmt::Block(sts) => {
                 self.env.push();
                 for st in sts {
-                    self.interpret(st);
+                    self.interpret(st)?;
                 }
                 self.env.pop();
+                Ok(())
             }
 
             Stmt::If(cond, then, r#else) => {
                 if self.evaluate(cond).unwrap_or(Value::Nil).truth() {
-                    self.interpret(*then);
+                    self.interpret(*then)
                 } else if let Some(e) = r#else {
-                    self.interpret(*e);
+                    self.interpret(*e)
+                } else {
+                    Ok(())
                 }
             }
 
             Stmt::While(cond, interior) => {
                 while self.evaluate(cond.clone()).unwrap_or(Value::Nil).truth() {
-                    self.interpret(*interior.clone());
+                    match self.interpret(*interior.clone()) {
+                        Ok(()) => (),
+                        Err(FlowControl::Break) => break,
+                        Err(FlowControl::Continue) => continue,
+                    }
                 }
+                Ok(())
             }
 
-            Stmt::NOP => (),
+            Stmt::NOP => Ok(()),
+            Stmt::Break => Err(FlowControl::Break),
+            Stmt::Continue => Err(FlowControl::Continue),
         }
     }
 
@@ -64,6 +84,7 @@ impl<'a> Interpreter<'a> {
                     Some(v)
                 }
             }
+
             Expr::Binary(e1, (_, Bin::Or), e2) => {
                 let v = self.evaluate(*e1)?;
                 if v.truth() {
@@ -72,6 +93,7 @@ impl<'a> Interpreter<'a> {
                     Some(self.evaluate(*e2)?)
                 }
             }
+
             Expr::Binary(e1, (pos, op), e2) => {
                 let l = self.evaluate(*e1)?;
                 let r = self.evaluate(*e2)?;
@@ -123,6 +145,25 @@ impl<'a> Interpreter<'a> {
                 self.assign(pos, name, v.clone())?;
                 Some(v)
             }
+
+            Expr::Call(function, pos, args) => {
+                let Value::Function(mut f) = self.evaluate(*function)? else {
+                    self.err
+                        .error(pos, "Cannot use function call syntax with non-function");
+                    return None;
+                };
+                let values = args
+                    .into_iter()
+                    .map(|x| self.evaluate(x))
+                    .collect::<Option<Vec<Value>>>()?;
+                if values.len() == f.arity() {
+                    Some(f.evaluate(self, values))
+                } else {
+                    self.err
+                        .error(pos, &format!("Expected {} arguments", f.arity()));
+                    None
+                }
+            }
         }
     }
 
@@ -145,7 +186,7 @@ impl<'a> Interpreter<'a> {
 struct Environment(Vec<Scope>);
 impl Environment {
     fn top() -> Self {
-        Self(vec![Scope(HashMap::new())])
+        Self(vec![Scope::globals()])
     }
 
     fn push(&mut self) {
@@ -211,4 +252,45 @@ impl Scope {
             std::collections::hash_map::Entry::Vacant(entry) => Err(entry.into_key()),
         }
     }
+
+    fn globals() -> Self {
+        let mut map = HashMap::new();
+        map.insert("clock".into(), Value::Function(global::clock()));
+        Self(map)
+    }
+}
+
+mod global {
+    use std::{cell::RefCell, rc::Rc};
+
+    use crate::expr::{LFT, LoxFunc, Value};
+
+    pub(crate) fn clock() -> crate::expr::LoxFunc {
+        struct Ret;
+        impl LFT for Ret {
+            fn arity(&self) -> usize {
+                0
+            }
+
+            fn evaluate(
+                &mut self,
+                _rt: &mut super::Interpreter,
+                _args: Vec<crate::expr::Value>,
+            ) -> crate::expr::Value {
+                Value::Num(
+                    std::time::UNIX_EPOCH
+                        .elapsed()
+                        .expect("Getting system time")
+                        .as_secs_f64(),
+                )
+            }
+        }
+        LoxFunc(Rc::new(RefCell::new(Ret)))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum FlowControl {
+    Continue,
+    Break,
 }

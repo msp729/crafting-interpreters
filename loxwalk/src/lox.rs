@@ -60,7 +60,7 @@ impl Lox {
 
         for stmt in stmts {
             //println!("{stmt}");
-            interp.interpret(stmt);
+            _ = interp.interpret(stmt);
         }
 
         Some(())

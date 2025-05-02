@@ -58,6 +58,15 @@ impl<'a> Parser<'a> {
             Payload::Grammar(Grammar::Keyword(Keyword::While)) => self.while_stmt(),
             Payload::Grammar(Grammar::Keyword(Keyword::For)) => self.for_stmt(),
 
+            Payload::Grammar(Grammar::Keyword(Keyword::Break)) => {
+                self.semicolon()?;
+                Some(Stmt::Break)
+            }
+            Payload::Grammar(Grammar::Keyword(Keyword::Continue)) => {
+                self.semicolon()?;
+                Some(Stmt::Continue)
+            }
+
             _ => {
                 self.current -= 1;
                 self.expr_stmt()
@@ -243,9 +252,34 @@ impl Parser<'_> {
             }
             _ => {
                 self.current -= 1;
-                self.primary()
+                self.fcall()
             }
         }
+    }
+
+    fn fcall(&mut self) -> Option<Expr> {
+        let mut function = self.primary()?;
+        while let Ok(beg) = self.check(Grammar::LP) {
+            let mut args = Vec::new();
+            let mut end = beg;
+            while let Err(ending) = self.check(Grammar::RP) {
+                end = ending;
+                args.push(self.expression()?);
+                while self.check(Grammar::RP).is_err() {
+                    self.consume(
+                        Grammar::Comma,
+                        "Function argument must be followed by paren or comma",
+                    );
+                    args.push(self.expression()?);
+                }
+            }
+            if args.len() > 255 {
+                self.err
+                    .error((beg..end).into(), "Cannot have more than 255 arguments");
+            }
+            function = Expr::Call(Box::new(function), (beg..end).into(), args);
+        }
+        Some(function)
     }
 
     fn primary(&mut self) -> Option<Expr> {

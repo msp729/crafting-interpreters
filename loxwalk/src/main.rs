@@ -1,4 +1,5 @@
 #![warn(clippy::pedantic)]
+#![allow(clippy::needless_continue)]
 pub mod expr;
 pub mod interpreter;
 pub mod lox;

@@ -74,6 +74,8 @@ pub enum Keyword {
     True,
     Var,
     While,
+    Break,
+    Continue,
 }
 
 impl Grammar {
@@ -161,6 +163,8 @@ impl Display for Keyword {
             Keyword::True => f.write_str("true"),
             Keyword::Var => f.write_str("var"),
             Keyword::While => f.write_str("while"),
+            Keyword::Break => f.write_str("break"),
+            Keyword::Continue => f.write_str("continue"),
         }
     }
 }
@@ -198,6 +202,8 @@ impl TryFrom<&String> for Keyword {
             "true" => Keyword::True,
             "var" => Keyword::Var,
             "while" => Keyword::While,
+            "break" => Keyword::Break,
+            "continue" => Keyword::Continue,
                 ; Err(())))
     }
 }
