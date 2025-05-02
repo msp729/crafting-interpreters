@@ -58,16 +58,26 @@ impl<'a> Parser<'a> {
 impl Parser<'_> {
     fn assignment(&mut self) -> Option<Expr> {
         let lhs = self.equality()?;
-        let Ok(_) = self.check(Grammar::Op(Op::Assign)) else {
-            return Some(lhs);
-        };
-        let rhs = self.assignment()?;
-        match lhs {
-            Expr::Ident(pos, name) => Some(Expr::Assign((pos, name), Box::new(rhs))),
-            lhs => {
-                self.err.error(lhs.pos(), "Cannot assign to expression");
-                None
+        if self.check(Grammar::Op(Op::Assign)).is_ok() {
+            let rhs = self.assignment()?;
+            match lhs {
+                Expr::Ident(pos, name) => Some(Expr::Assign((pos, name), Box::new(rhs))),
+                lhs => {
+                    self.err.error(lhs.pos(), "Cannot assign to expression");
+                    None
+                }
             }
+        } else if self.check(Grammar::Op(Op::Push)).is_ok() {
+            let rhs = self.assignment()?;
+            match lhs {
+                Expr::Ident(pos, name) => Some(Expr::Push((pos, name), Box::new(rhs))),
+                lhs => {
+                    self.err.error(lhs.pos(), "Cannot assign to expression");
+                    None
+                }
+            }
+        } else {
+            Some(lhs)
         }
     }
 

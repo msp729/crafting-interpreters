@@ -47,6 +47,7 @@ pub enum Op {
     Slash,
     Bang,
     Assign,
+    Push,
     Equal,
     NotEqual,
     GE,
@@ -136,6 +137,7 @@ impl Display for Op {
             Op::GT => f.write_char('>'),
             Op::LE => f.write_str("<="),
             Op::LT => f.write_char('<'),
+            Op::Push => f.write_char(':'),
         }
     }
 }

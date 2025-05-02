@@ -83,6 +83,17 @@ impl<'a> Interpreter<'a> {
                 }
             }
 
+            Expr::Push((pos, name), expr) => {
+                if self.env.contains_key(&name) {
+                    let v = self.evaluate(*expr).unwrap_or(Value::Nil);
+                    self.env.insert(name, v)
+                } else {
+                    self.err
+                        .error(pos, "Variable assigned to without declaration");
+                    None
+                }
+            }
+
             Expr::Assign((pos, name), expr) => {
                 if self.env.contains_key(&name) {
                     let v = self.evaluate(*expr).unwrap_or(Value::Nil);

@@ -2,6 +2,6 @@ var v1 = 1;
 print v1;
 v1 = 2;
 print v1;
-var v3 = v1 = "a";
+var v3 = v1 : "a";
 print v3;
 print v1;

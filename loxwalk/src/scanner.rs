@@ -59,6 +59,7 @@ impl<'a> Scanner<'a> {
             ',' => self.placeg(Grammar::Comma),
             '.' => self.placeg(Grammar::Dot),
             ';' => self.placeg(Grammar::Semicolon),
+            ':' => self.placeg(Grammar::Op(Op::Push)),
             '-' => self.placeg(Grammar::Op(Op::Minus)),
             '+' => self.placeg(Grammar::Op(Op::Plus)),
             '*' => self.placeg(Grammar::Op(Op::Star)),

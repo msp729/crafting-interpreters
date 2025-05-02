@@ -8,6 +8,7 @@ pub enum Expr {
     Literal(Position, Value),
     Ident(Position, String),
     Assign((Position, String), Box<Expr>),
+    Push((Position, String), Box<Expr>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -55,7 +56,9 @@ impl Expr {
     pub fn pos(&self) -> Position {
         match self {
             Expr::Binary(l, _, r) => (l.pos()..r.pos()).into(),
-            Expr::Unary((p, _), e) | Expr::Assign((p, _), e) => (*p..e.pos()).into(),
+            Expr::Push((p, _), e) | Expr::Unary((p, _), e) | Expr::Assign((p, _), e) => {
+                (*p..e.pos()).into()
+            }
             Expr::Grouping(p, _) | Expr::Literal(p, _) | Expr::Ident(p, _) => *p,
         }
     }
@@ -70,6 +73,7 @@ impl std::fmt::Display for Expr {
             Expr::Literal(_, value) => write!(f, "[literal {value}]"),
             Expr::Ident(_, name) => write!(f, "[ident {name}]"),
             Expr::Assign((_, name), expr) => write!(f, "[assign {name} = {expr}]"),
+            Expr::Push((_, name), expr) => write!(f, "[push {name} : {expr}]"),
         }
     }
 }
