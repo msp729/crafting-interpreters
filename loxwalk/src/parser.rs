@@ -19,6 +19,16 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn trace(&self) -> String {
+        let mut ret = String::new();
+        for i in self.current.saturating_sub(1)..=self.current + 1 {
+            if i < self.tokens.len() {
+                ret += &self.tokens[i].to_string();
+            }
+        }
+        ret
+    }
+
     pub fn parse(&mut self) -> Vec<Stmt> {
         let mut ret = Vec::new();
         while !self.is_at_end() {
@@ -40,6 +50,7 @@ impl<'a> Parser<'a> {
         self.current += 1;
         match load {
             Payload::Grammar(Grammar::Keyword(Keyword::Var)) => self.decl_stmt(),
+            Payload::Grammar(Grammar::Keyword(Keyword::Fun)) => self.fun_decl(),
 
             _ => {
                 self.current -= 1;
@@ -66,6 +77,13 @@ impl<'a> Parser<'a> {
                 self.semicolon()?;
                 Some(Stmt::Continue)
             }
+            Payload::Grammar(Grammar::Keyword(Keyword::Return)) => {
+                let e = self.expression()?;
+                self.semicolon()?;
+                Some(Stmt::Return(e))
+            }
+
+            Payload::Grammar(Grammar::Semicolon) => Some(Stmt::NOP),
 
             _ => {
                 self.current -= 1;
@@ -87,9 +105,13 @@ impl<'a> Parser<'a> {
     }
 }
 
+const EXPRTRACE: bool = false;
 // expression guts
 impl Parser<'_> {
     fn assignment(&mut self) -> Option<Expr> {
+        if EXPRTRACE {
+            println!("assignment, {}", self.trace());
+        }
         let lhs = self.or_expr()?;
         if self.check(Grammar::Op(Op::Assign)).is_ok() {
             let rhs = self.assignment()?;
@@ -115,6 +137,9 @@ impl Parser<'_> {
     }
 
     fn or_expr(&mut self) -> Option<Expr> {
+        if EXPRTRACE {
+            println!("or_expr, {}", self.trace());
+        }
         let mut running = self.and_expr()?;
         while let Ok(pos) = self.check(Grammar::Keyword(Keyword::Or)) {
             if let Some(rhs) = self.and_expr() {
@@ -127,6 +152,9 @@ impl Parser<'_> {
     }
 
     fn and_expr(&mut self) -> Option<Expr> {
+        if EXPRTRACE {
+            println!("and_expr, {}", self.trace());
+        }
         let mut running = self.equality()?;
         while let Ok(pos) = self.check(Grammar::Keyword(Keyword::And)) {
             if let Some(rhs) = self.equality() {
@@ -139,6 +167,9 @@ impl Parser<'_> {
     }
 
     fn equality(&mut self) -> Option<Expr> {
+        if EXPRTRACE {
+            println!("equality, {}", self.trace());
+        }
         let mut running = self.comparison()?;
         while let Some(op) = self.equality_op() {
             if let Some(rhs) = self.comparison() {
@@ -151,6 +182,9 @@ impl Parser<'_> {
     }
 
     fn equality_op(&mut self) -> Option<(Position, Bin)> {
+        if EXPRTRACE {
+            println!("equality_op, {}", self.trace());
+        }
         let Token { pos, load } = &self.tokens[self.current];
         self.current += 1;
         match load {
@@ -164,6 +198,9 @@ impl Parser<'_> {
     }
 
     fn comparison(&mut self) -> Option<Expr> {
+        if EXPRTRACE {
+            println!("comparison, {}", self.trace());
+        }
         let mut running = self.term()?;
         while let Some(op) = self.comparison_op() {
             if let Some(rhs) = self.term() {
@@ -176,6 +213,9 @@ impl Parser<'_> {
     }
 
     fn comparison_op(&mut self) -> Option<(Position, Bin)> {
+        if EXPRTRACE {
+            println!("comparison_op, {}", self.trace());
+        }
         let Token { pos, load } = &self.tokens[self.current];
         self.current += 1;
         match load {
@@ -191,6 +231,9 @@ impl Parser<'_> {
     }
 
     fn term(&mut self) -> Option<Expr> {
+        if EXPRTRACE {
+            println!("term, {}", self.trace());
+        }
         let mut running = self.factor()?;
         while let Some(op) = self.term_op() {
             if let Some(rhs) = self.factor() {
@@ -203,6 +246,9 @@ impl Parser<'_> {
     }
 
     fn term_op(&mut self) -> Option<(Position, Bin)> {
+        if EXPRTRACE {
+            println!("term_op, {}", self.trace());
+        }
         let Token { pos, load } = &self.tokens[self.current];
         self.current += 1;
         match load {
@@ -216,6 +262,9 @@ impl Parser<'_> {
     }
 
     fn factor(&mut self) -> Option<Expr> {
+        if EXPRTRACE {
+            println!("factor, {}", self.trace());
+        }
         let mut running = self.unary()?;
         while let Some(op) = self.factor_op() {
             if let Some(rhs) = self.unary() {
@@ -228,6 +277,9 @@ impl Parser<'_> {
     }
 
     fn factor_op(&mut self) -> Option<(Position, Bin)> {
+        if EXPRTRACE {
+            println!("factor_op, {}", self.trace());
+        }
         let Token { pos, load } = &self.tokens[self.current];
         self.current += 1;
         match load {
@@ -241,6 +293,9 @@ impl Parser<'_> {
     }
 
     fn unary(&mut self) -> Option<Expr> {
+        if EXPRTRACE {
+            println!("unary, {}", self.trace());
+        }
         let Token { pos, load } = &self.tokens[self.current];
         self.current += 1;
         match load {
@@ -258,11 +313,14 @@ impl Parser<'_> {
     }
 
     fn fcall(&mut self) -> Option<Expr> {
+        if EXPRTRACE {
+            println!("fcall, {}", self.trace());
+        }
         let mut function = self.primary()?;
         while let Ok(beg) = self.check(Grammar::LP) {
             let mut args = Vec::new();
             let mut end = beg;
-            while let Err(ending) = self.check(Grammar::RP) {
+            if let Err(ending) = self.check(Grammar::RP) {
                 end = ending;
                 args.push(self.expression()?);
                 while self.check(Grammar::RP).is_err() {
@@ -283,6 +341,9 @@ impl Parser<'_> {
     }
 
     fn primary(&mut self) -> Option<Expr> {
+        if EXPRTRACE {
+            println!("primary, {}", self.trace());
+        }
         let Token { pos, load } = &self.tokens[self.current];
         self.current += 1;
         match load {
@@ -363,14 +424,26 @@ impl Parser<'_> {
         Some(Stmt::Print(e))
     }
 
-    fn decl_name(&mut self) -> Option<String> {
+    fn get_name(&mut self, msg: &str) -> Option<String> {
         let Token { pos, load } = &self.tokens[self.current];
         let Payload::Ident(name) = load else {
-            self.err.error(*pos, "Expected variable name");
+            self.err.error(*pos, msg);
             return None;
         };
         self.current += 1;
         Some(name.clone())
+    }
+
+    fn arg_name(&mut self) -> Option<String> {
+        self.get_name("Expected function argument")
+    }
+
+    fn fun_name(&mut self) -> Option<String> {
+        self.get_name("Expected function name")
+    }
+
+    fn decl_name(&mut self) -> Option<String> {
+        self.get_name("Expected variable name")
     }
 
     fn decl_stmt(&mut self) -> Option<Stmt> {
@@ -381,6 +454,21 @@ impl Parser<'_> {
         };
         self.semicolon();
         Some(Stmt::Decl(name, value))
+    }
+
+    fn fun_decl(&mut self) -> Option<Stmt> {
+        let fname = self.fun_name()?;
+        self.consume(Grammar::LP, "Expected argument list")?;
+        let mut args = Vec::new();
+        if self.check(Grammar::RP).is_err() {
+            args.push(self.arg_name()?);
+            while !self.is_at_end() && self.check(Grammar::Comma).is_ok() {
+                args.push(self.arg_name()?);
+            }
+            self.consume(Grammar::RP, "Argument list must end")?;
+        }
+        let body = self.statement()?;
+        Some(Stmt::Fun(fname, args, Box::new(body)))
     }
 
     fn if_stmt(&mut self) -> Option<Stmt> {

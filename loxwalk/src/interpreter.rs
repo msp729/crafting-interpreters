@@ -1,9 +1,9 @@
 use crate::{
-    expr::{Bin, Expr, LFT, Value},
+    expr::{Bin, Expr, LFT, LoxFunc, Value},
     reporting::{ErrorClient, ErrorManager, Position},
     stmt::Stmt,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 pub struct Interpreter<'a> {
     err: ErrorClient<'a>,
@@ -63,14 +63,56 @@ impl<'a> Interpreter<'a> {
                         Ok(()) => (),
                         Err(FlowControl::Break) => break,
                         Err(FlowControl::Continue) => continue,
+                        Err(FlowControl::Return(x)) => return Err(FlowControl::Return(x)),
                     }
                 }
+                Ok(())
+            }
+
+            Stmt::Fun(fname, args, body) => {
+                struct LF(String, Vec<String>, Stmt);
+                impl LFT for LF {
+                    fn arity(&self) -> usize {
+                        self.1.len()
+                    }
+
+                    fn evaluate(&mut self, rt: &mut Interpreter, args: Vec<Value>) -> Value {
+                        rt.env.push();
+                        let x = 0..args.len();
+                        for (arg, i) in args.into_iter().zip(x) {
+                            rt.env.declare(self.1[i].clone(), arg);
+                        }
+                        let rv = rt.interpret(self.2.clone());
+                        rt.env.pop();
+
+                        match rv {
+                            Ok(()) => Value::Nil,
+                            Err(FlowControl::Return(x)) => x,
+                            Err(FlowControl::Break) => {
+                                eprintln!("top-level break in function");
+                                Value::Nil
+                            }
+                            Err(FlowControl::Continue) => {
+                                eprintln!("top-level continue in function");
+                                Value::Nil
+                            }
+                        }
+                    }
+                }
+
+                self.env.declare(
+                    fname.clone(),
+                    Value::Function(LoxFunc(Rc::new(std::cell::RefCell::new(LF(
+                        fname, args, *body,
+                    ))))),
+                );
                 Ok(())
             }
 
             Stmt::NOP => Ok(()),
             Stmt::Break => Err(FlowControl::Break),
             Stmt::Continue => Err(FlowControl::Continue),
+            Stmt::Return(e) => Err(FlowControl::Return(self.evaluate(e).unwrap_or(Value::Nil))),
         }
     }
 
@@ -289,8 +331,9 @@ mod global {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum FlowControl {
+    Return(Value),
     Continue,
     Break,
 }
