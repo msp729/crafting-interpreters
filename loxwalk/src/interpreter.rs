@@ -1,9 +1,9 @@
 use crate::{
-    expr::{Bin, Expr, LFT, LoxFunc, Value},
+    expr::{Bin, Expr, LoxFunc, Value, LFT},
     reporting::{ErrorClient, ErrorManager, Position},
     stmt::Stmt,
 };
-use std::{collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 pub struct Interpreter<'a> {
     err: ErrorClient<'a>,
@@ -41,7 +41,13 @@ impl<'a> Interpreter<'a> {
             Stmt::Block(sts) => {
                 self.env.push();
                 for st in sts {
-                    self.interpret(st)?;
+                    match self.interpret(st) {
+                        Ok(()) => (),
+                        Err(err) => {
+                            self.env.pop();
+                            return Err(err);
+                        }
+                    }
                 }
                 self.env.pop();
                 Ok(())
@@ -70,39 +76,9 @@ impl<'a> Interpreter<'a> {
             }
 
             Stmt::Fun(fname, args, body) => {
-                struct LF(String, Vec<String>, Stmt);
-                impl LFT for LF {
-                    fn arity(&self) -> usize {
-                        self.1.len()
-                    }
-
-                    fn evaluate(&mut self, rt: &mut Interpreter, args: Vec<Value>) -> Value {
-                        rt.env.push();
-                        let x = 0..args.len();
-                        for (arg, i) in args.into_iter().zip(x) {
-                            rt.env.declare(self.1[i].clone(), arg);
-                        }
-                        let rv = rt.interpret(self.2.clone());
-                        rt.env.pop();
-
-                        match rv {
-                            Ok(()) => Value::Nil,
-                            Err(FlowControl::Return(x)) => x,
-                            Err(FlowControl::Break) => {
-                                eprintln!("top-level break in function");
-                                Value::Nil
-                            }
-                            Err(FlowControl::Continue) => {
-                                eprintln!("top-level continue in function");
-                                Value::Nil
-                            }
-                        }
-                    }
-                }
-
                 self.env.declare(
                     fname.clone(),
-                    Value::Function(LoxFunc(Rc::new(std::cell::RefCell::new(LF(
+                    Value::Function(LoxFunc(Rc::new(RefCell::new(global::LF(
                         fname, args, *body,
                     ))))),
                 );
@@ -112,7 +88,10 @@ impl<'a> Interpreter<'a> {
             Stmt::NOP => Ok(()),
             Stmt::Break => Err(FlowControl::Break),
             Stmt::Continue => Err(FlowControl::Continue),
-            Stmt::Return(e) => Err(FlowControl::Return(self.evaluate(e).unwrap_or(Value::Nil))),
+            Stmt::Return(Some(e)) => {
+                Err(FlowControl::Return(self.evaluate(e).unwrap_or(Value::Nil)))
+            }
+            Stmt::Return(None) => Err(FlowControl::Return(Value::Nil)),
         }
     }
 
@@ -305,29 +284,81 @@ impl Scope {
 mod global {
     use std::{cell::RefCell, rc::Rc};
 
-    use crate::expr::{LFT, LoxFunc, Value};
+    use super::{FlowControl, Interpreter};
+    use crate::expr::{LoxFunc, Value, LFT};
+    use crate::stmt::Stmt;
 
-    pub(crate) fn clock() -> crate::expr::LoxFunc {
-        struct Ret;
-        impl LFT for Ret {
-            fn arity(&self) -> usize {
-                0
+    macro_rules! newfunc {
+        ($name:ident, $arity:literal, $sname:ident, $fn:expr) => {
+            pub(crate) fn $name() -> LoxFunc {
+                struct $sname;
+                impl LFT for $sname {
+                    fn arity(&self) -> usize {
+                        $arity
+                    }
+                    fn evaluate(&mut self, _: &mut Interpreter, args: Vec<Value>) -> Value {
+                        $fn(args)
+                    }
+                    fn name(&self) -> String {
+                        stringify!($name).into()
+                    }
+                    fn is_native(&self) -> bool {
+                        true
+                    }
+                }
+                LoxFunc(Rc::new(RefCell::new($sname)))
             }
+        };
+    }
 
-            fn evaluate(
-                &mut self,
-                _rt: &mut super::Interpreter,
-                _args: Vec<crate::expr::Value>,
-            ) -> crate::expr::Value {
-                Value::Num(
-                    std::time::UNIX_EPOCH
-                        .elapsed()
-                        .expect("Getting system time")
-                        .as_secs_f64(),
-                )
+    newfunc!(
+        clock,
+        0,
+        Clock,
+        (|_| std::time::UNIX_EPOCH
+            .elapsed()
+            .expect("Failed to get clock time")
+            .as_secs_f64()
+            .into())
+    );
+
+    pub struct LF(pub String, pub Vec<String>, pub Stmt);
+
+    impl LFT for LF {
+        fn arity(&self) -> usize {
+            self.1.len()
+        }
+
+        fn evaluate(&mut self, rt: &mut Interpreter, args: Vec<Value>) -> Value {
+            rt.env.push();
+            let x = 0..args.len();
+            for (arg, i) in args.into_iter().zip(x) {
+                rt.env.declare(self.1[i].clone(), arg);
+            }
+            let rv = rt.interpret(self.2.clone());
+            rt.env.pop();
+
+            match rv {
+                Ok(()) => Value::Nil,
+                Err(FlowControl::Return(x)) => x,
+                Err(FlowControl::Break) => {
+                    eprintln!("top-level break in function");
+                    Value::Nil
+                }
+                Err(FlowControl::Continue) => {
+                    eprintln!("top-level continue in function");
+                    Value::Nil
+                }
             }
         }
-        LoxFunc(Rc::new(RefCell::new(Ret)))
+
+        fn name(&self) -> String {
+            self.0.clone()
+        }
+
+        fn is_native(&self) -> bool {
+            false
+        }
     }
 }
 

@@ -9,7 +9,7 @@ pub enum Stmt {
     Block(Vec<Stmt>),
     While(Expr, Box<Stmt>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
-    Return(Expr),
+    Return(Option<Expr>),
     NOP,
     Break,
     Continue,

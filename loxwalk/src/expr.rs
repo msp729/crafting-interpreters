@@ -32,6 +32,24 @@ impl PartialEq for LoxFunc {
     }
 }
 
+impl From<f64> for Value {
+    fn from(value: f64) -> Self {
+        Self::Num(value)
+    }
+}
+
+impl From<String> for Value {
+    fn from(value: String) -> Self {
+        Self::Str(value)
+    }
+}
+
+impl From<bool> for Value {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
+    }
+}
+
 impl LFT for LoxFunc {
     fn arity(&self) -> usize {
         (*self.0).borrow().arity()
@@ -39,6 +57,14 @@ impl LFT for LoxFunc {
 
     fn evaluate(&mut self, rt: &mut Interpreter, args: Vec<Value>) -> Value {
         (*self.0).borrow_mut().evaluate(rt, args)
+    }
+
+    fn name(&self) -> String {
+        (*self.0).borrow().name()
+    }
+
+    fn is_native(&self) -> bool {
+        (*self.0).borrow().is_native()
     }
 }
 
@@ -51,6 +77,8 @@ impl std::fmt::Debug for LoxFunc {
 pub trait LFT {
     fn arity(&self) -> usize;
     fn evaluate(&mut self, rt: &mut Interpreter, args: Vec<Value>) -> Value;
+    fn name(&self) -> String;
+    fn is_native(&self) -> bool;
 }
 
 #[derive(Clone, Debug)]
@@ -162,7 +190,13 @@ impl std::fmt::Display for Value {
             Value::Str(s) => write!(f, "{s:#?}"),
             Value::Bool(b) => write!(f, "{b}"),
             Value::Nil => write!(f, "nil"),
-            Value::Function(_) => f.write_str("<function>"),
+            Value::Function(fun) => {
+                if fun.is_native() {
+                    write!(f, "<native function '{}'>", fun.name())
+                } else {
+                    write!(f, "<function '{}'>", fun.name())
+                }
+            }
         }
     }
 }

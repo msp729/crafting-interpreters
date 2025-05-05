@@ -78,9 +78,13 @@ impl<'a> Parser<'a> {
                 Some(Stmt::Continue)
             }
             Payload::Grammar(Grammar::Keyword(Keyword::Return)) => {
-                let e = self.expression()?;
-                self.semicolon()?;
-                Some(Stmt::Return(e))
+                if self.check(Grammar::Semicolon).is_err() {
+                    let e = self.expression()?;
+                    self.semicolon()?;
+                    Some(Stmt::Return(Some(e)))
+                } else {
+                    Some(Stmt::Return(None))
+                }
             }
 
             Payload::Grammar(Grammar::Semicolon) => Some(Stmt::NOP),
