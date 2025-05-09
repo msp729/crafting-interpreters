@@ -1,9 +1,9 @@
 #![warn(clippy::pedantic)]
 #![allow(clippy::needless_continue)]
 pub mod expr;
-pub mod interpreter;
 pub mod lox;
 pub mod parser;
+pub mod passes;
 pub mod reporting;
 pub mod scanner;
 pub mod stmt;

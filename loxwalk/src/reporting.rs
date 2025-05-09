@@ -53,13 +53,13 @@ impl ErrorClient<'_> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Loc {
     pub line: u64,
     pub col: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Eq, Hash)]
 pub struct Position {
     pub start: Loc,
     pub end: Loc,

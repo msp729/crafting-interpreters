@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{interpreter::Interpreter, reporting::Position};
+use crate::{passes::interpreter::Interpreter, reporting::Position};
 
 #[derive(Clone, Debug)]
 pub enum Expr {

@@ -1,13 +1,15 @@
 use crate::{
-    expr::{Bin, Expr, LoxFunc, Value, LFT},
+    expr::{Bin, Expr, LFT, LoxFunc, Value},
     reporting::{ErrorClient, ErrorManager, Position},
     stmt::Stmt,
 };
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
+#[derive(Debug)]
 pub struct Interpreter<'a> {
-    err: ErrorClient<'a>,
+    pub(crate) err: ErrorClient<'a>,
     env: Environment,
+    pub(crate) locals: HashMap<Position, usize>,
 }
 
 impl<'a> Interpreter<'a> {
@@ -28,11 +30,11 @@ impl<'a> Interpreter<'a> {
                 Ok(())
             }
 
-            Stmt::Decl(name, None) => {
+            Stmt::Decl((_, name), None) => {
                 self.env.declare(name, Value::Nil);
                 Ok(())
             }
-            Stmt::Decl(name, Some(e)) => {
+            Stmt::Decl((_, name), Some(e)) => {
                 let v = self.evaluate(e).unwrap_or(Value::Nil);
                 self.env.declare(name, v);
                 Ok(())
@@ -75,7 +77,7 @@ impl<'a> Interpreter<'a> {
                 Ok(())
             }
 
-            Stmt::Fun(fname, args, body) => {
+            Stmt::Fun((_, fname), args, body) => {
                 self.env.declare(
                     fname.clone(),
                     Value::Function(LoxFunc(Rc::new(RefCell::new(global::LF(
@@ -192,22 +194,40 @@ impl<'a> Interpreter<'a> {
         Self {
             err: mgr.client(),
             env: Environment::top(),
+            locals: HashMap::new(),
         }
     }
 
     fn assign(&mut self, pos: Position, name: String, val: Value) -> Option<Value> {
-        self.env.assign(self.err, pos, name, val)
+        if let Some(dist) = self.locals.get(&pos) {
+            self.env.assign_at(*dist, name, val)
+        } else {
+            self.globals().assign(name, val)
+        }
     }
 
     fn value(&mut self, pos: Position, name: &str) -> Option<Value> {
-        self.env.value(self.err, pos, name)
+        if let Some(dist) = self.locals.get(&pos) {
+            self.env.get_at(*dist, name)
+        } else {
+            self.globals().get(name)
+        }
+    }
+
+    fn globals(&mut self) -> &mut Scope {
+        self.env.global()
     }
 }
 
+#[derive(Debug)]
 struct Environment(Vec<Scope>);
 impl Environment {
     fn top() -> Self {
         Self(vec![Scope::globals()])
+    }
+
+    fn get_at(&self, dist: usize, name: &str) -> Option<Value> {
+        self.0[self.0.len() - 1 - dist].get(name)
     }
 
     fn push(&mut self) {
@@ -218,39 +238,8 @@ impl Environment {
         self.0.pop();
     }
 
-    fn assign(
-        &mut self,
-        err: ErrorClient,
-        pos: Position,
-        mut name: String,
-        val: Value,
-    ) -> Option<Value> {
-        for i in self.idxs() {
-            let scope = &mut self.0[i];
-            name = match scope.updater(name) {
-                // a very convoluted way to do all of this without ever cloning name
-                Ok(mut updater) => return Some(updater(val)),
-                // move name back out of the function if necessary
-                Err(name) => name,
-            }
-        }
-        err.error(pos, &format!("Assigning to '{name}' before declaration"));
-        None
-    }
-
     fn declare(&mut self, name: String, v: Value) {
         self.local().0.insert(name, v);
-    }
-
-    fn value(&self, err: ErrorClient, pos: Position, name: &str) -> Option<Value> {
-        for i in self.idxs() {
-            let scope = &self.0[i];
-            if let Some(v) = scope.0.get(name) {
-                return Some(v.clone());
-            }
-        }
-        err.error(pos, &format!("'{name}' is undefined"));
-        None
     }
 
     fn local(&mut self) -> &mut Scope {
@@ -258,20 +247,22 @@ impl Environment {
         &mut self.0[i]
     }
 
-    fn idxs(&self) -> impl Iterator<Item = usize> + use<> {
-        let x = self.0.len();
-        (1..=x).map(move |i| x - i)
+    fn global(&mut self) -> &mut Scope {
+        &mut self.0[0]
+    }
+
+    fn assign_at(&mut self, dist: usize, name: String, val: Value) -> Option<Value> {
+        let x = self.0.len() - dist - 1;
+        self.0[x].assign(name, val)
     }
 }
 
+#[derive(Debug)]
 struct Scope(HashMap<String, Value>);
 
 impl Scope {
-    fn updater(&mut self, name: String) -> Result<impl FnMut(Value) -> Value, String> {
-        match self.0.entry(name) {
-            std::collections::hash_map::Entry::Occupied(mut entry) => Ok(move |v| entry.insert(v)),
-            std::collections::hash_map::Entry::Vacant(entry) => Err(entry.into_key()),
-        }
+    fn get(&self, name: &str) -> Option<Value> {
+        self.0.get(name).cloned()
     }
 
     fn globals() -> Self {
@@ -279,13 +270,17 @@ impl Scope {
         map.insert("clock".into(), Value::Function(global::clock()));
         Self(map)
     }
+
+    fn assign(&mut self, name: String, val: Value) -> Option<Value> {
+        self.0.insert(name, val)
+    }
 }
 
 mod global {
     use std::{cell::RefCell, rc::Rc};
 
     use super::{FlowControl, Interpreter};
-    use crate::expr::{LoxFunc, Value, LFT};
+    use crate::expr::{LFT, LoxFunc, Value};
     use crate::stmt::Stmt;
 
     macro_rules! newfunc {

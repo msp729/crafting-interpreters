@@ -428,25 +428,25 @@ impl Parser<'_> {
         Some(Stmt::Print(e))
     }
 
-    fn get_name(&mut self, msg: &str) -> Option<String> {
+    fn get_name(&mut self, msg: &str) -> Option<(Position, String)> {
         let Token { pos, load } = &self.tokens[self.current];
         let Payload::Ident(name) = load else {
             self.err.error(*pos, msg);
             return None;
         };
         self.current += 1;
-        Some(name.clone())
+        Some((*pos, name.clone()))
     }
 
     fn arg_name(&mut self) -> Option<String> {
-        self.get_name("Expected function argument")
+        self.get_name("Expected function argument").map(|x| x.1)
     }
 
-    fn fun_name(&mut self) -> Option<String> {
+    fn fun_name(&mut self) -> Option<(Position, String)> {
         self.get_name("Expected function name")
     }
 
-    fn decl_name(&mut self) -> Option<String> {
+    fn decl_name(&mut self) -> Option<(Position, String)> {
         self.get_name("Expected variable name")
     }
 

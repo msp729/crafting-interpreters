@@ -1,4 +1,5 @@
-use crate::interpreter::Interpreter;
+use crate::passes::interpreter::Interpreter;
+use crate::passes::resolver::Resolver;
 use crate::scanner::Scanner;
 use crate::{parser::Parser, reporting::ErrorManager};
 use std::io::{BufRead, Write};
@@ -56,6 +57,8 @@ impl Lox {
         let stmts = parser.parse();
 
         for stmt in stmts {
+            let mut res = Resolver::new(&self.err, interp);
+            res.resolve(&stmt);
             _ = interp.interpret(stmt);
         }
 

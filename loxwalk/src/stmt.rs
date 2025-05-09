@@ -1,9 +1,9 @@
-use crate::expr::Expr;
+use crate::{expr::Expr, reporting::Position};
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
-    Decl(String, Option<Expr>),
-    Fun(String, Vec<String>, Box<Stmt>),
+    Decl((Position, String), Option<Expr>),
+    Fun((Position, String), Vec<String>, Box<Stmt>),
     Expr(Expr),
     Print(Expr),
     Block(Vec<Stmt>),
