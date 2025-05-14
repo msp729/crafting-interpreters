@@ -7,9 +7,9 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Debug)]
 pub struct Interpreter<'a> {
-    pub(crate) err: ErrorClient<'a>,
-    env: Environment,
-    pub(crate) locals: HashMap<Position, usize>,
+    pub err: ErrorClient<'a>,
+    pub env: Rc<RefCell<Environment>>,
+    pub locals: HashMap<Position, usize>,
 }
 
 impl<'a> Interpreter<'a> {
@@ -31,27 +31,27 @@ impl<'a> Interpreter<'a> {
             }
 
             Stmt::Decl((_, name), None) => {
-                self.env.declare(name, Value::Nil);
+                self.env.borrow_mut().declare(name, Value::Nil);
                 Ok(())
             }
             Stmt::Decl((_, name), Some(e)) => {
                 let v = self.evaluate(e).unwrap_or(Value::Nil);
-                self.env.declare(name, v);
+                self.env.borrow_mut().declare(name, v);
                 Ok(())
             }
 
             Stmt::Block(sts) => {
-                self.env.push();
+                self.push();
                 for st in sts {
                     match self.interpret(st) {
                         Ok(()) => (),
                         Err(err) => {
-                            self.env.pop();
+                            self.pop();
                             return Err(err);
                         }
                     }
                 }
-                self.env.pop();
+                self.pop();
                 Ok(())
             }
 
@@ -78,7 +78,7 @@ impl<'a> Interpreter<'a> {
             }
 
             Stmt::Fun((_, fname), args, body) => {
-                self.env.declare(
+                self.env.borrow_mut().declare(
                     fname.clone(),
                     Value::Function(LoxFunc(Rc::new(RefCell::new(global::LF(
                         fname, args, *body,
@@ -193,49 +193,78 @@ impl<'a> Interpreter<'a> {
     pub fn new(mgr: &'a ErrorManager) -> Self {
         Self {
             err: mgr.client(),
-            env: Environment::top(),
+            env: Rc::new(RefCell::new(Environment::top())),
             locals: HashMap::new(),
         }
     }
 
     fn assign(&mut self, pos: Position, name: String, val: Value) -> Option<Value> {
         if let Some(dist) = self.locals.get(&pos) {
-            self.env.assign_at(*dist, name, val)
+            self.env.borrow_mut().assign_at(*dist, name, val)
         } else {
-            self.globals().assign(name, val)
+            self.globals().borrow_mut().locals.assign(name, val)
         }
     }
 
     fn value(&mut self, pos: Position, name: &str) -> Option<Value> {
         if let Some(dist) = self.locals.get(&pos) {
-            self.env.get_at(*dist, name)
+            self.env.borrow().get_at(*dist, name)
         } else {
-            self.globals().get(name)
+            self.globals().borrow().locals.get(name)
         }
     }
 
-    fn globals(&mut self) -> &mut Scope {
-        self.env.global()
+    fn globals(&mut self) -> Rc<RefCell<Environment>> {
+        Environment::global(&self.env)
+    }
+
+    fn push(&mut self) {
+        let new = Environment {
+            locals: Scope(HashMap::new()),
+            parent: Some(self.env.clone()),
+        };
+        self.env = Rc::new(RefCell::new(new));
+    }
+
+    fn pop(&mut self) {
+        self.env = match &self.env.clone().borrow().parent {
+            Some(p) => p.clone(),
+            None => self.env.clone(),
+        }
     }
 }
 
 #[derive(Debug)]
-struct Environment(Vec<Scope>);
+pub struct Environment {
+    locals: Scope,
+    parent: Option<Rc<RefCell<Environment>>>,
+}
+
 impl Environment {
     fn top() -> Self {
-        Self(vec![Scope::globals()])
+        Self {
+            locals: Scope::globals(),
+            parent: None,
+        }
     }
 
     fn get_at(&self, dist: usize, name: &str) -> Option<Value> {
-        self.0[self.0.len() - 1 - dist].get(name)
+        if dist == 0 {
+            self.locals.get(name)
+        } else {
+            self.parent
+                .as_ref()
+                .expect("Resolved distance was too high")
+                .borrow()
+                .get_at(dist - 1, name)
+        }
     }
 
-    fn push(&mut self) {
-        self.0.push(Scope(HashMap::new()));
-    }
-
-    fn pop(&mut self) {
-        self.0.pop();
+    fn global(this: &Rc<RefCell<Self>>) -> Rc<RefCell<Self>> {
+        match &this.borrow().parent {
+            Some(p) => Self::global(p),
+            None => this.clone(),
+        }
     }
 
     fn declare(&mut self, name: String, v: Value) {
@@ -243,17 +272,19 @@ impl Environment {
     }
 
     fn local(&mut self) -> &mut Scope {
-        let i = self.0.len() - 1;
-        &mut self.0[i]
-    }
-
-    fn global(&mut self) -> &mut Scope {
-        &mut self.0[0]
+        &mut self.locals
     }
 
     fn assign_at(&mut self, dist: usize, name: String, val: Value) -> Option<Value> {
-        let x = self.0.len() - dist - 1;
-        self.0[x].assign(name, val)
+        if dist == 0 {
+            self.locals.assign(name, val)
+        } else {
+            self.parent
+                .as_ref()
+                .expect("Resolved distance was too high")
+                .borrow_mut()
+                .assign_at(dist - 1, name, val)
+        }
     }
 }
 
@@ -325,13 +356,13 @@ mod global {
         }
 
         fn evaluate(&mut self, rt: &mut Interpreter, args: Vec<Value>) -> Value {
-            rt.env.push();
+            rt.push();
             let x = 0..args.len();
             for (arg, i) in args.into_iter().zip(x) {
-                rt.env.declare(self.1[i].clone(), arg);
+                rt.env.borrow_mut().declare(self.1[i].clone(), arg);
             }
             let rv = rt.interpret(self.2.clone());
-            rt.env.pop();
+            rt.pop();
 
             match rv {
                 Ok(()) => Value::Nil,
