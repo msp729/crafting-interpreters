@@ -20,7 +20,7 @@ pub struct Resolver<'a, 'b> {
 impl<'a, 'b> Resolver<'a, 'b> {
     pub fn new(mgr: &'a ErrorManager, interp: &'a mut Interpreter<'b>) -> Self {
         Self {
-            scopes: Vec::new(),
+            scopes: vec![HashMap::new()],
             err: mgr.client(),
             interp,
         }
@@ -112,7 +112,8 @@ impl<'a, 'b> Resolver<'a, 'b> {
 
     fn define(&mut self, name: &str) {
         if !self.scopes.is_empty() {
-            self.scopes[0].insert(name.into(), true);
+            let x = self.scopes.len() - 1;
+            self.scopes[x].insert(name.into(), true);
         }
     }
 

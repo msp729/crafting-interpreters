@@ -78,10 +78,17 @@ impl<'a> Interpreter<'a> {
             }
 
             Stmt::Fun((_, fname), args, body) => {
+                let child = Environment {
+                    locals: Scope(HashMap::new()),
+                    parent: Some(self.env.clone()),
+                };
                 self.env.borrow_mut().declare(
                     fname.clone(),
                     Value::Function(LoxFunc(Rc::new(RefCell::new(global::LF(
-                        fname, args, *body,
+                        fname,
+                        args,
+                        *body,
+                        Rc::new(RefCell::new(child)),
                     ))))),
                 );
                 Ok(())
@@ -208,6 +215,7 @@ impl<'a> Interpreter<'a> {
 
     fn value(&mut self, pos: Position, name: &str) -> Option<Value> {
         if let Some(dist) = self.locals.get(&pos) {
+            //println!("{:?} [{:?}] {{{}}}", self.env, name, dist);
             self.env.borrow().get_at(*dist, name)
         } else {
             self.globals().borrow().locals.get(name)
@@ -232,6 +240,12 @@ impl<'a> Interpreter<'a> {
             None => self.env.clone(),
         }
     }
+
+    fn with(&mut self, env: Rc<RefCell<Environment>>) -> Rc<RefCell<Environment>> {
+        let old = self.env.clone();
+        self.env = env;
+        old
+    }
 }
 
 #[derive(Debug)]
@@ -250,7 +264,7 @@ impl Environment {
 
     fn get_at(&self, dist: usize, name: &str) -> Option<Value> {
         if dist == 0 {
-            self.locals.get(name)
+            Some(self.locals.get(name).expect("Resolved wrong"))
         } else {
             self.parent
                 .as_ref()
@@ -310,7 +324,7 @@ impl Scope {
 mod global {
     use std::{cell::RefCell, rc::Rc};
 
-    use super::{FlowControl, Interpreter};
+    use super::{Environment, FlowControl, Interpreter};
     use crate::expr::{LFT, LoxFunc, Value};
     use crate::stmt::Stmt;
 
@@ -348,7 +362,12 @@ mod global {
             .into())
     );
 
-    pub struct LF(pub String, pub Vec<String>, pub Stmt);
+    pub struct LF(
+        pub String,
+        pub Vec<String>,
+        pub Stmt,
+        pub Rc<RefCell<Environment>>,
+    );
 
     impl LFT for LF {
         fn arity(&self) -> usize {
@@ -356,13 +375,13 @@ mod global {
         }
 
         fn evaluate(&mut self, rt: &mut Interpreter, args: Vec<Value>) -> Value {
-            rt.push();
+            let oldenv = rt.with(self.3.clone());
             let x = 0..args.len();
             for (arg, i) in args.into_iter().zip(x) {
                 rt.env.borrow_mut().declare(self.1[i].clone(), arg);
             }
             let rv = rt.interpret(self.2.clone());
-            rt.pop();
+            rt.with(oldenv);
 
             match rv {
                 Ok(()) => Value::Nil,
