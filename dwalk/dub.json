@@ -1,0 +1,9 @@
+{
+	"authors": [
+		"nate"
+	],
+	"copyright": "Copyright © 2025, nate",
+	"description": "crafting interpreters, in OOP style",
+	"license": "Unlicense",
+	"name": "dwalk"
+}
